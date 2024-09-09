@@ -1,7 +1,8 @@
+use std::ops::Range;
 use std::usize;
 
-use crate::piece::{self, ColouredPiece, KingState, PawnState, Piece};
-use crate::position::{board_position_to_coordinate, BoardPosition};
+use crate::piece::{self, ColouredPiece, KingState, PawnState, Piece, StepCount};
+use crate::position::{board_position_to_coordinate, coordinate_to_board_position, BoardPosition};
 
 pub struct ChessGame {
     board: [[ColouredPiece; 8]; 8],
@@ -53,6 +54,7 @@ impl Default for ChessGame {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum Turn {
     White,
     Black,
@@ -64,16 +66,144 @@ pub enum GameState {
     CheckMate,
 }
 
+#[derive(Clone, Copy)]
+pub enum MoveType {
+    Invalid,
+    Move,
+    Capture,
+}
+
 impl ChessGame {
-    pub fn get_valid_moves(self, position: BoardPosition) -> Option<Vec<BoardPosition>> {
-        todo!()
+    pub fn get_valid_moves(self, position: BoardPosition) -> Option<[[MoveType; 8]; 8]> {
+        let (file, rank) = board_position_to_coordinate(position);
+
+        let current_board_position = self.board[usize::from(file)][usize::from(rank)];
+
+        let (piece, kind) = match current_board_position {
+            ColouredPiece::White(piece) => Some((piece, Turn::White)),
+            ColouredPiece::Black(piece) => Some((piece, Turn::Black)),
+            ColouredPiece::None => None,
+        }?;
+        let base_vectors = current_board_position.get_movement_base_vector()?;
+        let move_amount = current_board_position.get_number_of_moves()?;
+
+        match piece {
+            _ => Some(self.get_standard_valid_move(
+                (file, rank),
+                base_vectors,
+                move_amount,
+                kind
+            )),
+        }
+    }
+
+    fn get_standard_valid_move(
+        &self,
+        position: (u8, u8),
+        base_vector: Vec<(i8, i8)>,
+        move_count: StepCount,
+        kind: Turn,
+    ) -> [[MoveType; 8]; 8] {
+        let mut move_map = [[MoveType::Invalid; 8]; 8];
+
+        let move_amount = match move_count {
+            StepCount::One => 1..2,
+            StepCount::Two => 1..3,
+            StepCount::Infinty => 1..8,
+        };
+
+        let moves = base_vector
+            .into_iter()
+            .map(|vector| {
+                self.compute_move_in_one_direction(
+                    position,
+                    kind,
+                    vector,
+                    move_amount.clone(),
+                )
+            })
+            .flatten();
+
+        for (new_file, new_rank) in moves {
+            move_map[new_file][new_rank] = match self.board[new_file][new_rank] {
+                ColouredPiece::None => MoveType::Move,
+                ColouredPiece::White(_) => {
+                    if matches!(kind, Turn::White) {
+                        MoveType::Invalid
+                    } else {
+                        MoveType::Capture
+                    }
+                }
+                ColouredPiece::Black(_) => {
+                    if matches!(kind, Turn::Black) {
+                        MoveType::Invalid
+                    } else {
+                        MoveType::Capture
+                    }
+                }
+            }
+        }
+        move_map
+    }
+
+    fn compute_move_in_one_direction(
+        &self,
+        position: (u8, u8),
+        kind: Turn,
+        vector: (i8, i8),
+        move_amount: Range<i8>,
+    ) -> Vec<(usize, usize)> {
+        let (file, rank) = vector;
+        let mut moves = Vec::new();
+
+        for current_amount in move_amount {
+            let new_file = position.0 as i8 + file * current_amount;
+
+            let new_file = if new_file >= 8 || new_file < 0 {
+                break;
+            } else {
+                new_file as usize
+            };
+
+            let new_rank = position.1 as i8 + rank * current_amount;
+
+            let new_rank = if new_rank >= 8 || new_rank < 0 {
+                break;
+            } else {
+                new_rank as usize
+            };
+
+            moves.push(match self.board[new_file][new_rank] {
+                ColouredPiece::None => (new_file, new_rank),
+                ColouredPiece::White(_) => {
+                    if matches!(kind, Turn::White) {
+                        break;
+                    } else {
+                        (new_file, new_rank)
+                    }
+                }
+                ColouredPiece::Black(_) => {
+                    if matches!(kind, Turn::Black) {
+                        break;
+                    } else {
+                        (new_file, new_rank)
+                    }
+                }
+            })
+        }
+        moves
     }
 }
 
-pub fn move_piece(initial_position: BoardPosition, desired_position: BoardPosition) -> Result<GameState, String> {
+pub fn move_piece(
+    initial_position: BoardPosition,
+    desired_position: BoardPosition,
+) -> Result<GameState, String> {
     todo!()
 }
 
-pub fn get_player_turn() -> Turn {
-    todo!()
+impl ChessGame {
+    pub fn get_player_turn(self) -> Turn {
+        self.turn
+    }
 }

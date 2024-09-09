@@ -7,69 +7,74 @@ pub enum ColouredPiece {
 
 #[derive(Clone, Copy)]
 pub enum Piece {
-    King{ movement_base_vector: [(i8, i8); 8], movement_steps: StepCount, check_state: CheckState, castling_state: CastlingState },
-    Queen{ movement_base_vector: [(i8, i8); 8], movement_steps: StepCount },
-    Rook{ movement_base_vector: [(i8, i8); 4], movement_steps: StepCount },
-    Bishop{ movement_base_vector: [(i8, i8); 4], movement_steps: StepCount },
-    Knight{ movement_base_vector: [(i8, i8); 8], movement_steps: StepCount },
-    Pawn{ movement_base_vector: [(i8, i8); 1], capture_base_vector: [(i8, i8); 2], movement_steps: StepCount, state: PawnState},
+    King{ check_state: CheckState, castling_state: CastlingState },
+    Queen,
+    Rook,
+    Bishop,
+    Knight,
+    Pawn{ state: PawnState},
 }
 
 impl Piece {
     pub fn new_king() -> Self {
         Piece::King {
-            movement_base_vector: [(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)],
-            movement_steps: StepCount::One,
             check_state: CheckState::None,
             castling_state: CastlingState::Castling,
         }
     }
 
-    pub fn new_queen() -> Self {
-        Piece::Queen {
-            movement_base_vector: [(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)],
-            movement_steps: StepCount::Infinty,
-        }
-    }
-
-    pub fn new_rook() -> Self {
-        Piece::Rook {
-            movement_base_vector: [(1, 0), (0, 1), (-1, 0), (0, -1)],
-            movement_steps: StepCount::Infinty,
-        }
-    }
-
-    pub fn new_bishop() -> Self {
-        Piece::Bishop {
-            movement_base_vector: [(1, 1), (-1, 1), (-1, -1), (1, -1)],
-            movement_steps: StepCount::Infinty,
-        }
-    }
-
-    pub fn new_knight() -> Self {
-        Piece::Knight {
-            movement_base_vector: [(-1, 2), (1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1)],
-            movement_steps: StepCount::One,
-        }
-    }
-}
-
-impl Piece {
     pub fn new_white_pawn() -> Self {
         Piece::Pawn {
-            movement_base_vector: [(0, 1)],
-            capture_base_vector: [(-1, 1), (1, 1)],
-            movement_steps: StepCount::One,
             state: PawnState::FirstMove,
         }
     }
 
     pub fn new_black_pawn() -> Self {
         Piece::Pawn {
-            movement_base_vector: [(0, -1)],
-            capture_base_vector: [(-1, -1), (1, -1)],
-            movement_steps: StepCount::One,
             state: PawnState::FirstMove,
+        }
+    }
+}
+
+impl ColouredPiece {
+    pub fn get_movement_base_vector(self) -> Option<Vec<(i8, i8)>> {
+        match self {
+            ColouredPiece::Black(piece) | ColouredPiece::White(piece) => {
+                Some(match piece {
+                    Piece::King{..} => vec![(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)],
+                    Piece::Queen => vec![(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)],
+                    Piece::Rook => vec![(0, 1), (1, 0), (0, -1), (-1, 0)],
+                    Piece::Bishop => vec![(1, 1), (1, -1), (-1, -1), (-1, 1)],
+                    Piece::Knight => vec![(-1, 2), (1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1)],
+                    Piece::Pawn{..} => {
+                        if matches!(self, ColouredPiece::White(_)) {
+                            vec![(0, 1)]
+                        }
+                        else {
+                            vec![(0, -1)]
+                        }
+                    }
+                    
+                })
+            },
+            ColouredPiece::None => None,
+        }
+    }
+
+    pub fn get_number_of_moves(self) -> Option<StepCount> {
+        match self {
+            ColouredPiece::White(piece)| ColouredPiece::Black(piece) => {
+                Some(match piece {
+                    Piece::King {..} => StepCount::One,
+                    Piece::Queen => StepCount::Infinty,
+                    Piece::Rook => StepCount::Infinty,
+                    Piece::Bishop => StepCount::Infinty,
+                    Piece::Knight => StepCount::One,
+                    Piece::Pawn{ state: PawnState::FirstMove } => StepCount::Two,
+                    Piece::Pawn{..} => StepCount::One,
+                })
+            },
+            ColouredPiece::None => None,
         }
     }
 }
@@ -98,5 +103,6 @@ pub enum CastlingState {
 #[derive(Clone, Copy)]
 pub enum StepCount {
     One,
+    Two,
     Infinty,
 }

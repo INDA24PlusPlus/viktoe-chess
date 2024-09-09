@@ -1,11 +1,11 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ColouredPiece {
     White(Piece),
     Black(Piece),
     None,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Piece {
     King{ check_state: CheckState, castling_state: CastlingState },
     Queen,
@@ -79,25 +79,26 @@ impl ColouredPiece {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum PawnState {
     FirstMove,
     PosibleEnPassant,
     Default,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum CheckState {
     CheckMate,
     Check,
     None,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum CastlingState {
     Castling,
     CastlingKingSide,
     CastlingQueenSide,
+    None,
 }
 
 #[derive(Clone, Copy)]

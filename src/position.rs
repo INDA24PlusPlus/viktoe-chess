@@ -1,3 +1,5 @@
+use std::u8;
+
 use crate::ChessError;
 
 #[derive(Debug, Clone)]
@@ -32,16 +34,7 @@ pub enum Vertical {
 
 impl From<Horizontal> for u8 {
     fn from(value: Horizontal) -> Self {
-        match value {
-            Horizontal::A => 0,
-            Horizontal::B => 1,
-            Horizontal::C => 2,
-            Horizontal::D => 3,
-            Horizontal::E => 4,
-            Horizontal::F => 5,
-            Horizontal::G => 6,
-            Horizontal::H => 7,
-        }
+        u8::from(&value)
     }
 }
 
@@ -80,16 +73,7 @@ impl TryFrom<u8> for Horizontal {
 
 impl From<Vertical> for u8 {
     fn from(value: Vertical) -> Self {
-        match value {
-            Vertical::One => 0,
-            Vertical::Two => 1,
-            Vertical::Three => 2,
-            Vertical::Four => 3,
-            Vertical::Five => 4,
-            Vertical::Six => 5,
-            Vertical::Seven => 6,
-            Vertical::Eight => 7,
-        }
+        u8::from(&value)
     }
 }
 
@@ -119,7 +103,7 @@ impl TryFrom<u8> for Vertical {
             3 => Ok(Vertical::Four),
             4 => Ok(Vertical::Five),
             5 => Ok(Vertical::Six),
-            6 => Ok(Vertical::Six),
+            6 => Ok(Vertical::Seven),
             7 => Ok(Vertical::Eight),
             _ => Err(ChessError::OutOfBounds),
         }

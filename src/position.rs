@@ -1,12 +1,12 @@
 use crate::ChessError;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BoardPosition {
     file: Horizontal,
     rank: Vertical,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Horizontal {
     A,
     B,
@@ -18,7 +18,7 @@ pub enum Horizontal {
     H,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Vertical {
     One,
     Two,
@@ -187,3 +187,4 @@ impl BoardPosition {
         BoardPosition::try_from((new_file, new_rank))
     }
 }
+

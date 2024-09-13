@@ -1,10 +1,10 @@
 use std::ops::Range;
 
 use crate::board::{Board, MoveType};
-use crate::position::BoardPosition;
+use crate::position::{self, BoardPosition};
 use crate::position::{Horizontal::*, Vertical::*};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ColouredPiece<T> {
     White(T),
     Black(T),
@@ -19,7 +19,7 @@ where
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Piece {
     King {
         check_state: CheckState,
@@ -125,21 +125,21 @@ impl ColouredPiece<Piece> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PawnState {
     FirstMove,
     PosibleEnPassant,
     Default,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CheckState {
     CheckMate,
     Check,
     None,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CastlingState {
     Castling,
     CastlingKingSide,
@@ -172,15 +172,24 @@ pub fn get_standard_valid_move(
     let mut move_map = Board::default();
 
     for base_vector in piece.get_movement_base_vector() {
-        for current_amount in Range::<i8>::from(piece.get_number_of_moves()) {
-            if let Some((position, move_type)) =
-                check_square(board, position, base_vector, current_amount, piece)
-            {
-                move_map.set_index(&position, move_type);
-            }
+        for (position, move_type) in evaluate_vector(board, piece, base_vector, position) {
+            move_map.set_index(&position, Some(move_type));
         }
     }
     move_map
+}
+
+pub fn evaluate_vector(
+    board: &Board<ColouredPiece<Piece>>,
+    piece: &ColouredPiece<Piece>,
+    base_vector: (i8, i8),
+    position: &BoardPosition,
+) -> Vec<(BoardPosition, MoveType)> {
+    Range::<i8>::from(piece.get_number_of_moves())
+        .map_while(|current_amount| {
+            check_square(board, position, base_vector, current_amount, piece)
+        })
+        .collect()
 }
 
 fn check_square(
@@ -238,7 +247,7 @@ pub fn get_pawn_moves(
             move_map.set_index(
                 &new_position,
                 match board.get_index(&new_position) {
-                    None => MoveType::Move,
+                    None => Some(MoveType::Move),
                     Some(_) => break,
                 },
             )
@@ -250,26 +259,26 @@ pub fn get_pawn_moves(
         ColouredPiece::White(_) => {
             if let Ok(position) = position.add((-1, 1)) {
                 if matches!(board.get_index(&position), Some(ColouredPiece::Black(_))) {
-                    move_map.set_index(&position, MoveType::Capture);
+                    move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
 
             if let Ok(position) = position.add((1, 1)) {
                 if matches!(board.get_index(&position), Some(ColouredPiece::Black(_))) {
-                    move_map.set_index(&position, MoveType::Capture);
+                    move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
         }
         ColouredPiece::Black(_) => {
             if let Ok(position) = position.add((-1, -1)) {
                 if matches!(board.get_index(&position), Some(ColouredPiece::White(_))) {
-                    move_map.set_index(&position, MoveType::Capture);
+                    move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
 
             if let Ok(position) = position.add((1, 1)) {
                 if matches!(board.get_index(&position), Some(ColouredPiece::White(_))) {
-                    move_map.set_index(&position, MoveType::Capture);
+                    move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
         }
@@ -285,7 +294,7 @@ pub fn get_pawn_moves(
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
-                    move_map.set_index(&position, MoveType::Capture);
+                    move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
 
@@ -296,7 +305,7 @@ pub fn get_pawn_moves(
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
-                    move_map.set_index(&position, MoveType::Capture);
+                    move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
         }
@@ -308,7 +317,7 @@ pub fn get_pawn_moves(
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
-                    move_map.set_index(&position, MoveType::Capture);
+                    move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
 
@@ -319,7 +328,7 @@ pub fn get_pawn_moves(
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
-                    move_map.set_index(&position, MoveType::Capture);
+                    move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
         }
@@ -363,7 +372,7 @@ fn get_king_side_castle(
                 return;
             }
 
-            move_map.set_index(&BoardPosition::from((G, One)), MoveType::Move)
+            move_map.set_index(&BoardPosition::from((G, One)), Some(MoveType::Move))
         }
         ColouredPiece::Black(_) => {
             if board.get_index(&BoardPosition::from((F, Eight))).is_some() {
@@ -373,7 +382,7 @@ fn get_king_side_castle(
                 return;
             }
 
-            move_map.set_index(&BoardPosition::from((G, One)), MoveType::Move)
+            move_map.set_index(&BoardPosition::from((G, One)), Some(MoveType::Move))
         }
     }
 }
@@ -395,7 +404,7 @@ fn get_queen_side_castle(
                 return;
             }
 
-            move_map.set_index(&BoardPosition::from((B, One)), MoveType::Move)
+            move_map.set_index(&BoardPosition::from((B, One)), Some(MoveType::Move))
         }
         ColouredPiece::Black(_) => {
             if board.get_index(&BoardPosition::from((B, Eight))).is_some() {
@@ -408,7 +417,7 @@ fn get_queen_side_castle(
                 return;
             }
 
-            move_map.set_index(&BoardPosition::from((B, One)), MoveType::Move)
+            move_map.set_index(&BoardPosition::from((B, One)), Some(MoveType::Move))
         }
     }
 }
@@ -416,3 +425,4 @@ fn get_queen_side_castle(
 fn vector_multiplication(vector: (i8, i8), scalar: i8) -> (i8, i8) {
     (vector.0 * scalar, vector.1 * scalar)
 }
+

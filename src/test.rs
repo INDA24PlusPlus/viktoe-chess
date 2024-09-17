@@ -4,16 +4,22 @@ mod tests {
     use crate::board::ChessGame;
     use crate::board::MoveType;
     use crate::piece::CastlingState;
-    use crate::piece::CheckState;
     use crate::piece::PawnState;
-    use crate::piece::{ColouredPiece, Piece};
-    use crate::position::{BoardPosition, Horizontal::*, Vertical::*};
+    use crate::piece::BLACK_ROOK;
+    use crate::piece::NEW_BLACK_KING;
+    use crate::piece::NEW_WHITE_KING;
+    use crate::piece::NEW_WHITE_PAWN;
+    use crate::piece::WHITE_ROOK;
+    use crate::piece::{Color, Piece};
+    use crate::position::{BoardPosition, File::*, Rank::*};
 
     #[test]
     fn valid_moves_correct() {
         let mut board = Board::default();
 
-        board.set_index(&BoardPosition::from((A, One)), Some(ColouredPiece::White(Piece::Rook)));
+        board.set_index(&BoardPosition::from((A, One)), Some(WHITE_ROOK));
+        board.set_index(&BoardPosition::from((E, One)), Some(NEW_WHITE_KING));
+        board.set_index(&BoardPosition::from((E, Eight)), Some(NEW_BLACK_KING));
 
         let mut game = ChessGame::default();
         game.board = board.clone();
@@ -28,7 +34,7 @@ mod tests {
             Some(MoveType::Move)
         ));
 
-        board.set_index(&BoardPosition::from((A, Eight)), Some(ColouredPiece::Black(Piece::Rook)));
+        board.set_index(&BoardPosition::from((A, Eight)), Some(BLACK_ROOK));
 
         game.board = board;
 
@@ -45,33 +51,33 @@ mod tests {
 
         assert!(matches!(
             game.get_index(&BoardPosition::from((A, One))),
-            Some(ColouredPiece::White(Piece::Rook))
+            Some(Color::White(Piece::Rook))
         ));
         assert!(matches!(
             game.get_index(&BoardPosition::from((B, One))),
-            Some(ColouredPiece::White(Piece::Knight))
+            Some(Color::White(Piece::Knight))
         ));
         assert!(matches!(
             game.get_index(&BoardPosition::from((C, One))),
-            Some(ColouredPiece::White(Piece::Bishop))
+            Some(Color::White(Piece::Bishop))
         ));
         assert!(matches!(
             game.get_index(&BoardPosition::from((D, One))),
-            Some(ColouredPiece::White(Piece::Queen))
+            Some(Color::White(Piece::Queen))
         ));
         assert!(matches!(
             game.get_index(&BoardPosition::from((E, One))),
-            Some(ColouredPiece::White(Piece::King { check_state: CheckState::None, castling_state: CastlingState::Castling }))
+            Some(Color::White(Piece::King { check_state: None, castling_state: (true, true) }))
         ));
         assert!(matches!(
             game.get_index(&BoardPosition::from((E, Two))),
-            Some(ColouredPiece::White(Piece::Pawn { state: PawnState::FirstMove }))
+            Some(Color::White(Piece::Pawn { state: PawnState::FirstMove }))
         ));
         assert!(game.get_index(&BoardPosition::from((E, Three))).is_none());
         assert!(game.get_index(&BoardPosition::from((E, Six))).is_none());
         assert!(matches!(
             game.get_index(&BoardPosition::from((E, Seven))),
-            Some(ColouredPiece::Black(Piece::Pawn { state: PawnState::FirstMove }))
+            Some(Color::Black(Piece::Pawn { state: PawnState::FirstMove }))
         ));
     }
 }

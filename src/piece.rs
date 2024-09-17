@@ -1,30 +1,109 @@
 use std::ops::Range;
 
-use crate::board::{Board, MoveType};
-use crate::position::{self, BoardPosition};
-use crate::position::{Horizontal::*, Vertical::*};
+use crate::board::{is_in_check, Board, MoveType, Turn};
+use crate::position::BoardPosition;
+use crate::position::{File::*, Rank::*};
+
+type KingSide = bool;
+type QueenSide = bool;
+
+pub const WHITE_KING: Color<Piece> = Color::White(Piece::King {
+    check_state: None,
+    castling_state: (false, false),
+});
+pub const NEW_WHITE_KING: Color<Piece> = Color::White(Piece::King {
+    check_state: None,
+    castling_state: (true, true)
+});
+pub const WHITE_QUEEN: Color<Piece> = Color::White(Piece::Queen);
+pub const WHITE_BISHOP: Color<Piece> = Color::White(Piece::Bishop);
+pub const WHITE_KNIGHT: Color<Piece> = Color::White(Piece::Knight);
+pub const WHITE_ROOK: Color<Piece> = Color::White(Piece::Rook);
+pub const WHITE_PAWN: Color<Piece> = Color::White(Piece::Pawn {
+    state: PawnState::Default,
+});
+pub const NEW_WHITE_PAWN: Color<Piece> = Color::White(Piece::Pawn {
+    state: PawnState::FirstMove,
+});
+
+pub const BLACK_KING: Color<Piece> = Color::Black(Piece::King {
+    check_state: None,
+    castling_state: (false, false),
+});
+pub const NEW_BLACK_KING: Color<Piece> = Color::Black(Piece::King {
+    check_state: None,
+    castling_state: (true, true),
+});
+pub const BLACK_QUEEN: Color<Piece> = Color::Black(Piece::Queen);
+pub const BLACK_BISHOP: Color<Piece> = Color::Black(Piece::Bishop);
+pub const BLACK_KNIGHT: Color<Piece> = Color::Black(Piece::Knight);
+pub const BLACK_ROOK: Color<Piece> = Color::Black(Piece::Rook);
+pub const BLACK_PAWN: Color<Piece> = Color::Black(Piece::Pawn {
+    state: PawnState::Default,
+});
+pub const NEW_BLACK_PAWN: Color<Piece> = Color::Black(Piece::Pawn {
+    state: PawnState::FirstMove,
+});
+
+impl Piece {
+    const KING_MOVES: [(i8, i8); 8] = [
+        (0, 1),
+        (1, 1),
+        (1, 0),
+        (1, -1),
+        (0, -1),
+        (-1, -1),
+        (-1, 0),
+        (-1, 1),
+    ];
+    const QUEEN_MOVES: [(i8, i8); 8] = [
+        (0, 1),
+        (1, 1),
+        (1, 0),
+        (1, -1),
+        (0, -1),
+        (-1, -1),
+        (-1, 0),
+        (-1, 1),
+    ];
+    const ROOK_MOVES: [(i8, i8); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
+    const BISHOP_MOVES: [(i8, i8); 4] = [(1, 1), (1, -1), (-1, -1), (-1, 1)];
+    const KNIGTH_MOVES: [(i8, i8); 8] = [
+        (-1, 2),
+        (1, 2),
+        (2, 1),
+        (2, -1),
+        (1, -2),
+        (-1, -2),
+        (-2, -1),
+        (-2, 1),
+    ];
+    const WHITE_PAWN_MOVES: [(i8, i8); 1] = [(0, 1)];
+    const BLACK_PAWN_MOVES: [(i8, i8); 1] = [(0, -1)];
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ColouredPiece<T> {
+pub enum Color<T> {
     White(T),
     Black(T),
 }
 
-impl<T> Default for ColouredPiece<T>
+impl<T> Default for Color<T>
 where
     T: Default,
 {
     fn default() -> Self {
-        ColouredPiece::White(T::default())
+        Color::White(T::default())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Piece {
     King {
-        check_state: CheckState,
-        castling_state: CastlingState,
+        check_state: Option<CheckState>,
+        castling_state: (KingSide, QueenSide)
     },
+    #[default]
     Queen,
     Rook,
     Bishop,
@@ -34,83 +113,25 @@ pub enum Piece {
     },
 }
 
-impl Default for Piece {
-    fn default() -> Self {
-        Piece::new_white_pawn()
-    }
-}
-
-impl Piece {
-    pub fn new_king() -> Self {
-        Piece::King {
-            check_state: CheckState::None,
-            castling_state: CastlingState::Castling,
-        }
-    }
-
-    pub fn new_white_pawn() -> Self {
-        Piece::Pawn {
-            state: PawnState::FirstMove,
-        }
-    }
-
-    pub fn new_black_pawn() -> Self {
-        Piece::Pawn {
-            state: PawnState::FirstMove,
-        }
-    }
-}
-
-impl ColouredPiece<Piece> {
+impl Color<Piece> {
     pub fn get_movement_base_vector(self) -> Vec<(i8, i8)> {
         match self {
-            ColouredPiece::Black(piece) | ColouredPiece::White(piece) => match piece {
-                Piece::King { .. } => vec![
-                    (0, 1),
-                    (1, 1),
-                    (1, 0),
-                    (1, -1),
-                    (0, -1),
-                    (-1, -1),
-                    (-1, 0),
-                    (-1, 1),
-                ],
-                Piece::Queen => vec![
-                    (0, 1),
-                    (1, 1),
-                    (1, 0),
-                    (1, -1),
-                    (0, -1),
-                    (-1, -1),
-                    (-1, 0),
-                    (-1, 1),
-                ],
-                Piece::Rook => vec![(0, 1), (1, 0), (0, -1), (-1, 0)],
-                Piece::Bishop => vec![(1, 1), (1, -1), (-1, -1), (-1, 1)],
-                Piece::Knight => vec![
-                    (-1, 2),
-                    (1, 2),
-                    (2, 1),
-                    (2, -1),
-                    (1, -2),
-                    (-1, -2),
-                    (-2, -1),
-                    (-2, 1),
-                ],
-                Piece::Pawn { .. } => {
-                    if matches!(self, ColouredPiece::White(_)) {
-                        vec![(0, 1)]
-                    } else {
-                        vec![(0, -1)]
-                    }
-                }
+            Color::White(Piece::Pawn { .. }) => Piece::WHITE_PAWN_MOVES.to_vec(),
+            Color::Black(Piece::Pawn { .. }) => Piece::BLACK_PAWN_MOVES.to_vec(),
+            Color::Black(piece) | Color::White(piece) => match piece {
+                Piece::King { .. } => Piece::KING_MOVES.to_vec(),
+                Piece::Queen => Piece::QUEEN_MOVES.to_vec(),
+                Piece::Bishop => Piece::BISHOP_MOVES.to_vec(),
+                Piece::Knight => Piece::BISHOP_MOVES.to_vec(),
+                Piece::Rook => Piece::ROOK_MOVES.to_vec(),
+                _ => Vec::new(),
             },
         }
     }
 
     pub fn get_number_of_moves(self) -> StepCount {
         match self {
-            ColouredPiece::White(piece) | ColouredPiece::Black(piece) => match piece {
+            Color::White(piece) | Color::Black(piece) => match piece {
                 Piece::King { .. } => StepCount::One,
                 Piece::Queen => StepCount::Infinty,
                 Piece::Rook => StepCount::Infinty,
@@ -121,6 +142,15 @@ impl ColouredPiece<Piece> {
                 } => StepCount::Two,
                 Piece::Pawn { .. } => StepCount::One,
             },
+        }
+    }
+}
+
+impl<T> Color<T> {
+    pub fn change_internal(&mut self, value: T) {
+        *self = match self {
+            Color::White(_) => Color::White(value),
+            Color::Black(_) => Color::Black(value)
         }
     }
 }
@@ -136,7 +166,6 @@ pub enum PawnState {
 pub enum CheckState {
     CheckMate,
     Check,
-    None,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -144,7 +173,6 @@ pub enum CastlingState {
     Castling,
     CastlingKingSide,
     CastlingQueenSide,
-    None,
 }
 
 #[derive(Clone, Copy)]
@@ -165,14 +193,30 @@ impl From<StepCount> for Range<i8> {
 }
 
 pub fn get_standard_valid_move(
-    board: &Board<ColouredPiece<Piece>>,
-    piece: &ColouredPiece<Piece>,
+    board: &Board<Color<Piece>>,
+    piece: &Color<Piece>,
     position: &BoardPosition,
+    king_position: &BoardPosition,
+    player_color: Turn,
 ) -> Board<MoveType> {
     let mut move_map = Board::default();
 
     for base_vector in piece.get_movement_base_vector() {
-        for (position, move_type) in evaluate_vector(board, piece, base_vector, position) {
+        let number_of_steps = piece.get_number_of_moves().into();
+
+        if let Ok(new_position) = position.add(base_vector) {
+            let mut test_board = board.clone();
+            test_board.set_index(&new_position, Some(piece.clone()));
+            test_board.set_index(position, None);
+
+            if is_in_check(board, king_position, player_color) {
+                continue;
+            }
+        }
+
+        for (position, move_type) in
+            evaluate_vector(board, base_vector, number_of_steps, player_color, position)
+        {
             move_map.set_index(&position, Some(move_type));
         }
     }
@@ -180,24 +224,25 @@ pub fn get_standard_valid_move(
 }
 
 pub fn evaluate_vector(
-    board: &Board<ColouredPiece<Piece>>,
-    piece: &ColouredPiece<Piece>,
+    board: &Board<Color<Piece>>,
     base_vector: (i8, i8),
+    number_of_steps: Range<i8>,
+    player_color: Turn,
     position: &BoardPosition,
 ) -> Vec<(BoardPosition, MoveType)> {
-    Range::<i8>::from(piece.get_number_of_moves())
+    number_of_steps
         .map_while(|current_amount| {
-            check_square(board, position, base_vector, current_amount, piece)
+            check_square(board, position, base_vector, current_amount, player_color)
         })
         .collect()
 }
 
 fn check_square(
-    board: &Board<ColouredPiece<Piece>>,
+    board: &Board<Color<Piece>>,
     position: &BoardPosition,
     base_vector: (i8, i8),
     current_amount: i8,
-    piece: &ColouredPiece<Piece>,
+    player_color: Turn,
 ) -> Option<(BoardPosition, MoveType)> {
     match position
         .clone()
@@ -205,19 +250,15 @@ fn check_square(
     {
         Ok(new_position) => {
             let square_on_new_position = board.get_index(&new_position);
-            let move_type = match piece {
+            let move_type = match player_color {
                 // If the piece to be moved is white and the piece on the square to be moved to
                 // contians a black piece
-                ColouredPiece::White(_)
-                    if matches!(square_on_new_position, Some(ColouredPiece::Black(_))) =>
-                {
+                Turn::White if matches!(square_on_new_position, Some(Color::Black(_))) => {
                     MoveType::Capture
                 }
                 // If the piece to be moved is black and the piece on the square to be moved to
                 // contians a white piece
-                ColouredPiece::Black(_)
-                    if matches!(square_on_new_position, Some(ColouredPiece::White(_))) =>
-                {
+                Turn::Black if matches!(square_on_new_position, Some(Color::White(_))) => {
                     MoveType::Capture
                 }
                 _ if square_on_new_position.is_none() => MoveType::Move,
@@ -231,9 +272,9 @@ fn check_square(
 }
 
 pub fn get_pawn_moves(
-    board: &Board<ColouredPiece<Piece>>,
+    board: &Board<Color<Piece>>,
     position: &BoardPosition,
-    piece: &ColouredPiece<Piece>,
+    piece: &Color<Piece>,
 ) -> Board<MoveType> {
     let mut move_map = Board::default();
 
@@ -256,28 +297,28 @@ pub fn get_pawn_moves(
 
     // Handle pawn captures
     match piece {
-        ColouredPiece::White(_) => {
+        Color::White(_) => {
             if let Ok(position) = position.add((-1, 1)) {
-                if matches!(board.get_index(&position), Some(ColouredPiece::Black(_))) {
+                if matches!(board.get_index(&position), Some(Color::Black(_))) {
                     move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
 
             if let Ok(position) = position.add((1, 1)) {
-                if matches!(board.get_index(&position), Some(ColouredPiece::Black(_))) {
+                if matches!(board.get_index(&position), Some(Color::Black(_))) {
                     move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
         }
-        ColouredPiece::Black(_) => {
+        Color::Black(_) => {
             if let Ok(position) = position.add((-1, -1)) {
-                if matches!(board.get_index(&position), Some(ColouredPiece::White(_))) {
+                if matches!(board.get_index(&position), Some(Color::White(_))) {
                     move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
 
             if let Ok(position) = position.add((1, 1)) {
-                if matches!(board.get_index(&position), Some(ColouredPiece::White(_))) {
+                if matches!(board.get_index(&position), Some(Color::White(_))) {
                     move_map.set_index(&position, Some(MoveType::Capture));
                 }
             }
@@ -286,11 +327,11 @@ pub fn get_pawn_moves(
 
     // Handle en passant
     match piece {
-        ColouredPiece::White(_) => {
+        Color::White(_) => {
             if let Ok(position) = position.add((-1, 0)) {
                 if matches!(
                     board.get_index(&position),
-                    Some(ColouredPiece::Black(Piece::Pawn {
+                    Some(Color::Black(Piece::Pawn {
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
@@ -301,7 +342,7 @@ pub fn get_pawn_moves(
             if let Ok(position) = position.add((1, 0)) {
                 if matches!(
                     board.get_index(&position),
-                    Some(ColouredPiece::Black(Piece::Pawn {
+                    Some(Color::Black(Piece::Pawn {
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
@@ -309,11 +350,11 @@ pub fn get_pawn_moves(
                 }
             }
         }
-        ColouredPiece::Black(_) => {
+        Color::Black(_) => {
             if let Ok(position) = position.add((-1, 0)) {
                 if matches!(
                     board.get_index(&position),
-                    Some(ColouredPiece::White(Piece::Pawn {
+                    Some(Color::White(Piece::Pawn {
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
@@ -324,7 +365,7 @@ pub fn get_pawn_moves(
             if let Ok(position) = position.add((1, 0)) {
                 if matches!(
                     board.get_index(&position),
-                    Some(ColouredPiece::White(Piece::Pawn {
+                    Some(Color::White(Piece::Pawn {
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
@@ -338,33 +379,33 @@ pub fn get_pawn_moves(
 }
 
 pub fn get_king_moves(
-    board: &Board<ColouredPiece<Piece>>,
+    board: &Board<Color<Piece>>,
     position: &BoardPosition,
-    piece: &ColouredPiece<Piece>,
-    castling_state: &CastlingState,
+    piece: &Color<Piece>,
+    castling_state: (KingSide, QueenSide),
+    player_color: Turn,
 ) -> Board<MoveType> {
-    let mut move_map = get_standard_valid_move(board, piece, position);
+    let mut move_map = get_standard_valid_move(board, piece, position, position, player_color);
 
-    match castling_state {
-        CastlingState::Castling => {
-            get_king_side_castle(board, &mut move_map, piece);
-            get_queen_side_castle(board, &mut move_map, piece);
-        }
-        CastlingState::CastlingKingSide => get_king_side_castle(board, &mut move_map, piece),
-        CastlingState::CastlingQueenSide => get_queen_side_castle(board, &mut move_map, piece),
-        CastlingState::None => (),
+    let (king_side, queen_side) = castling_state;
+
+    if king_side {
+        get_king_side_castle(board, &mut move_map, piece);
+    }
+    if queen_side {
+        get_queen_side_castle(board, &mut move_map, piece);
     }
 
     move_map
 }
 
 fn get_king_side_castle(
-    board: &Board<ColouredPiece<Piece>>,
+    board: &Board<Color<Piece>>,
     move_map: &mut Board<MoveType>,
-    piece: &ColouredPiece<Piece>,
+    piece: &Color<Piece>,
 ) {
     match piece {
-        ColouredPiece::White(_) => {
+        Color::White(_) => {
             if board.get_index(&BoardPosition::from((F, One))).is_some() {
                 return;
             }
@@ -374,7 +415,7 @@ fn get_king_side_castle(
 
             move_map.set_index(&BoardPosition::from((G, One)), Some(MoveType::Move))
         }
-        ColouredPiece::Black(_) => {
+        Color::Black(_) => {
             if board.get_index(&BoardPosition::from((F, Eight))).is_some() {
                 return;
             }
@@ -388,12 +429,12 @@ fn get_king_side_castle(
 }
 
 fn get_queen_side_castle(
-    board: &Board<ColouredPiece<Piece>>,
+    board: &Board<Color<Piece>>,
     move_map: &mut Board<MoveType>,
-    piece: &ColouredPiece<Piece>,
+    piece: &Color<Piece>,
 ) {
     match piece {
-        ColouredPiece::White(_) => {
+        Color::White(_) => {
             if board.get_index(&BoardPosition::from((B, One))).is_some() {
                 return;
             }
@@ -406,7 +447,7 @@ fn get_queen_side_castle(
 
             move_map.set_index(&BoardPosition::from((B, One)), Some(MoveType::Move))
         }
-        ColouredPiece::Black(_) => {
+        Color::Black(_) => {
             if board.get_index(&BoardPosition::from((B, Eight))).is_some() {
                 return;
             }
@@ -426,3 +467,8 @@ fn vector_multiplication(vector: (i8, i8), scalar: i8) -> (i8, i8) {
     (vector.0 * scalar, vector.1 * scalar)
 }
 
+#[cfg(test)]
+mod tests {
+    fn test(){}
+
+}

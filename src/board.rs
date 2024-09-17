@@ -1,6 +1,14 @@
-
-use crate::piece::{evaluate_vector, get_king_moves, get_pawn_moves, get_standard_valid_move, ColouredPiece, Piece};
-use crate::position::{self, BoardPosition, Horizontal::*, Vertical::*};
+use crate::piece::{
+    evaluate_vector, get_king_moves, get_pawn_moves, get_standard_valid_move,
+    Color, PawnState, Piece, StepCount, BLACK_BISHOP, BLACK_KNIGHT, BLACK_PAWN,
+    BLACK_QUEEN, BLACK_ROOK, NEW_BLACK_KING, NEW_BLACK_PAWN, NEW_WHITE_KING, NEW_WHITE_PAWN,
+    WHITE_BISHOP, WHITE_KNIGHT, WHITE_PAWN, WHITE_QUEEN, WHITE_ROOK,
+};
+use crate::position::{
+    BoardPosition,
+    File::*,
+    Rank::*,
+};
 use crate::ChessError;
 
 #[derive(Clone, Copy)]
@@ -25,6 +33,7 @@ pub enum MoveType {
 #[derive(Clone)]
 pub struct Board<T> {
     board: [[Option<T>; 8]; 8],
+    position: BoardPosition,
 }
 
 impl<T> Board<T> {
@@ -48,109 +57,90 @@ where
     fn default() -> Board<T> {
         Board {
             board: [[None; 8]; 8],
+            position: BoardPosition::from((A, Eight)),
         }
     }
 }
 
+impl<T> Iterator for Board<T>
+where
+    T: Clone,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = (*self.get_index(&self.position)).clone();
+
+        self.position = match self.position.add((1, 0)) {
+            Ok(pos) => pos,
+            Err(_) => match self.position.add((-8, -1)) {
+                Ok(pos) => pos,
+                Err(_) => return None,
+            },
+        };
+
+        item
+    }
+}
+
+// impl Board<Color<Piece>> {
+//     fn from_fen(&str) -> Result<Self, > {
+//
+//     }
+// }
+
 pub struct ChessGame {
-    pub board: Board<ColouredPiece<Piece>>,
+    pub board: Board<Color<Piece>>,
     turn: Turn,
     state: GameState,
     white_king_position: BoardPosition,
     black_king_position: BoardPosition,
+    en_passant: Vec<BoardPosition>,
 }
 
 impl Default for ChessGame {
     fn default() -> Self {
         let mut board = Board::default();
 
-        board.set_index(
-            &BoardPosition::from((A, One)),
-            Some(ColouredPiece::White(Piece::Rook)),
-        );
-        board.set_index(
-            &BoardPosition::from((H, One)),
-            Some(ColouredPiece::White(Piece::Rook)),
-        );
+        board.set_index(&BoardPosition::from((A, One)), Some(WHITE_ROOK));
+        board.set_index(&BoardPosition::from((H, One)), Some(WHITE_ROOK));
 
-        board.set_index(
-            &BoardPosition::from((B, One)),
-            Some(ColouredPiece::White(Piece::Knight)),
-        );
-        board.set_index(
-            &BoardPosition::from((G, One)),
-            Some(ColouredPiece::White(Piece::Knight)),
-        );
+        board.set_index(&BoardPosition::from((B, One)), Some(WHITE_KNIGHT));
+        board.set_index(&BoardPosition::from((G, One)), Some(WHITE_KNIGHT));
 
-        board.set_index(
-            &BoardPosition::from((C, One)),
-            Some(ColouredPiece::White(Piece::Bishop)),
-        );
-        board.set_index(
-            &BoardPosition::from((F, One)),
-            Some(ColouredPiece::White(Piece::Bishop)),
-        );
+        board.set_index(&BoardPosition::from((C, One)), Some(WHITE_BISHOP));
+        board.set_index(&BoardPosition::from((F, One)), Some(WHITE_BISHOP));
 
-        board.set_index(
-            &BoardPosition::from((D, One)),
-            Some(ColouredPiece::White(Piece::Queen)),
-        );
-        board.set_index(
-            &BoardPosition::from((E, One)),
-            Some(ColouredPiece::White(Piece::new_king())),
-        );
+        board.set_index(&BoardPosition::from((D, One)), Some(WHITE_QUEEN));
+        board.set_index(&BoardPosition::from((E, One)), Some(NEW_WHITE_KING));
 
         let white_king_position = BoardPosition::from((E, One));
 
         for file in 0..8 {
             board.set_index(
                 &BoardPosition::try_from((file, 1)).unwrap(),
-                Some(ColouredPiece::White(Piece::new_white_pawn())),
+                Some(NEW_WHITE_PAWN),
             );
         }
 
-        board.set_index(
-            &BoardPosition::from((A, Eight)),
-            Some(ColouredPiece::Black(Piece::Rook)),
-        );
-        board.set_index(
-            &BoardPosition::from((H, Eight)),
-            Some(ColouredPiece::Black(Piece::Rook)),
-        );
+        board.set_index(&BoardPosition::from((A, Eight)), Some(BLACK_ROOK));
+        board.set_index(&BoardPosition::from((H, Eight)), Some(BLACK_ROOK));
 
-        board.set_index(
-            &BoardPosition::from((B, Eight)),
-            Some(ColouredPiece::Black(Piece::Knight)),
-        );
-        board.set_index(
-            &BoardPosition::from((G, Eight)),
-            Some(ColouredPiece::Black(Piece::Knight)),
-        );
+        board.set_index(&BoardPosition::from((B, Eight)), Some(BLACK_KNIGHT));
+        board.set_index(&BoardPosition::from((G, Eight)), Some(BLACK_KNIGHT));
 
-        board.set_index(
-            &BoardPosition::from((C, Eight)),
-            Some(ColouredPiece::Black(Piece::Bishop)),
-        );
-        board.set_index(
-            &BoardPosition::from((F, Eight)),
-            Some(ColouredPiece::Black(Piece::Bishop)),
-        );
+        board.set_index(&BoardPosition::from((C, Eight)), Some(BLACK_BISHOP));
+        board.set_index(&BoardPosition::from((F, Eight)), Some(BLACK_BISHOP));
 
-        board.set_index(
-            &BoardPosition::from((D, Eight)),
-            Some(ColouredPiece::Black(Piece::Queen)),
-        );
-        board.set_index(
-            &BoardPosition::from((E, Eight)),
-            Some(ColouredPiece::Black(Piece::new_king())),
-        );
+        board.set_index(&BoardPosition::from((D, Eight)), Some(BLACK_QUEEN));
+        board.set_index(&BoardPosition::from((E, Eight)), Some(NEW_BLACK_KING));
 
         let black_king_position = BoardPosition::from((E, Eight));
 
         for file in 0..8 {
             board.set_index(
                 &BoardPosition::try_from((file, 6)).unwrap(),
-                Some(ColouredPiece::Black(Piece::new_black_pawn())),
+                Some(NEW_BLACK_PAWN),
             );
         }
 
@@ -160,12 +150,13 @@ impl Default for ChessGame {
             state: GameState::Ongoing,
             white_king_position,
             black_king_position,
+            en_passant: Vec::new(),
         }
     }
 }
 
 impl ChessGame {
-    pub fn get_index(&self, position: &BoardPosition) -> &Option<ColouredPiece<Piece>> {
+    pub fn get_index(&self, position: &BoardPosition) -> &Option<Color<Piece>> {
         self.board.get_index(position)
     }
 
@@ -176,8 +167,8 @@ impl ChessGame {
         };
 
         let piece_type = match piece {
-            ColouredPiece::White(piece) => piece,
-            ColouredPiece::Black(piece) => piece,
+            Color::White(piece) => piece,
+            Color::Black(piece) => piece,
         };
 
         let king_position = match self.turn {
@@ -185,21 +176,12 @@ impl ChessGame {
             Turn::Black => &self.black_king_position,
         };
 
-        let colour = match self.turn {
-            Turn::White => ColouredPiece::White(()),
-            Turn::Black => ColouredPiece::Black(()),
-        };
-
-        // if is_in_check(&self.board, king_position, colour) {
-        //     return None;
-        // }
-
         Some(match piece_type {
             Piece::King { castling_state, .. } => {
-                get_king_moves(&self.board, position, piece, castling_state)
+                get_king_moves(&self.board, position, piece, *castling_state, self.turn)
             }
             Piece::Pawn { .. } => get_pawn_moves(&self.board, position, piece),
-            _ => get_standard_valid_move(&self.board, piece, position),
+            _ => get_standard_valid_move(&self.board, piece, position, king_position, self.turn),
         })
     }
 
@@ -208,67 +190,114 @@ impl ChessGame {
         initial_position: &BoardPosition,
         desired_position: &BoardPosition,
     ) -> Result<GameState, ChessError> {
-        let piece = *match self.board.get_index(initial_position) {
-            Some(piece) => {
-                match piece {
-                    ColouredPiece::White(_) if matches!(self.turn, Turn::White) => piece,
-                    ColouredPiece::Black(_) if matches!(self.turn, Turn::Black) => piece,
-                    _ => return Err(ChessError::NoPiece),
-                    
-                }
+        let mut piece = *match self.board.get_index(initial_position) {
+            Some(piece) => match piece {
+                Color::White(_) if matches!(self.turn, Turn::White) => piece,
+                Color::Black(_) if matches!(self.turn, Turn::Black) => piece,
+                _ => return Err(ChessError::NoPiece),
             },
             None => return Err(ChessError::NoPiece),
         };
 
-        let moves = self.get_valid_moves(initial_position).ok_or(ChessError::NoMoves)?;
+        let moves = self
+            .get_valid_moves(initial_position)
+            .ok_or(ChessError::NoMoves)?;
 
-        moves.get_index(desired_position).ok_or(ChessError::InvalidMove)?;
+        moves
+            .get_index(desired_position)
+            .ok_or(ChessError::InvalidMove)?;
 
+        self.en_passant = Vec::new();
 
-        let king_position = match self.turn {
-            Turn::Black => &self.white_king_position,
-            Turn::White => &self.black_king_position,
-        };
-
-        let colour = match self.turn {
-            Turn::Black => ColouredPiece::White(()),
-            Turn::White => ColouredPiece::Black(()),
-        };
-
-        let mut board = self.board.clone();
-
-        board.set_index(initial_position, None);
-        board.set_index(desired_position, Some(piece));
-
-        // if is_in_check(&board, king_position, colour) {
-        //     return Err(ChessError::SelfCheck);
-        // }
-        
-        self.board.set_index(initial_position, None);
-        self.board.set_index(desired_position, Some(piece));
+        match piece {
+            NEW_WHITE_PAWN | NEW_BLACK_PAWN => piece.change_internal(Piece::Pawn {
+                state: PawnState::PosibleEnPassant,
+            }),
+            Color::White(Piece::King { .. }) | Color::Black(Piece::King { .. }) => piece
+                .change_internal(Piece::King {
+                    check_state: None,
+                    castling_state: (false, false),
+                }),
+            _ => {}
+        }
 
         let king_position = match self.turn {
             Turn::White => &self.white_king_position,
             Turn::Black => &self.black_king_position,
         };
 
-        let colour = match self.turn {
-            Turn::White => ColouredPiece::White(()),
-            Turn::Black => ColouredPiece::Black(()),
-        };
+        if matches!(piece, WHITE_ROOK | BLACK_ROOK) {
+            match self.get_index(king_position) {
+                Some(Color::White(Piece::King {
+                    castling_state: (true, queen_side),
+                    ..
+                })) if *initial_position == BoardPosition::from((H, One)) => {
+                    self.board.set_index(
+                        king_position,
+                        Some(Color::White(Piece::King {
+                            check_state: None,
+                            castling_state: (false, *queen_side)
+                        })),
+                    )
+                }
+                Some(Color::White(Piece::King {
+                    castling_state: (king_side, true),
+                    ..
+                })) if *initial_position == BoardPosition::from((A, One)) => {
+                    self.board.set_index(
+                        king_position,
+                        Some(Color::White(Piece::King {
+                            check_state: None,
+                            castling_state: (*king_side, false)
+                        })),
+                    )
+                }
+                Some(Color::Black(Piece::King {
+                    castling_state: (true, queen_side),
+                    ..
+                })) if *initial_position == BoardPosition::from((A, Eight)) => {
+                    self.board.set_index(
+                        king_position,
+                        Some(Color::Black(Piece::King {
+                            check_state: None,
+                            castling_state: (false, *queen_side)
+                        })),
+                    )
+                }
+                Some(Color::Black(Piece::King {
+                    castling_state: (king_side, true),
+                    ..
+                })) if *initial_position == BoardPosition::from((H, Eight)) => {
+                    self.board.set_index(
+                        king_position,
+                        Some(Color::Black(Piece::King {
+                            check_state: None,
+                            castling_state: (*king_side, false)
+                        })),
+                    )
+                }
+                _ => {}
+            }
+        }
+
+        self.board.set_index(initial_position, None);
+        self.board.set_index(desired_position, Some(piece));
 
         self.turn = match self.turn {
             Turn::White => Turn::Black,
             Turn::Black => Turn::White,
         };
 
-        // if is_in_check(&board, king_position, colour) {
-        //     Ok(GameState::Check)
-        // }
-        // else {
-        //     Ok(GameState::Ongoing)
-        // }
-        Ok(GameState::Ongoing)
+        let king_position = match self.turn {
+            Turn::White => &self.white_king_position,
+            Turn::Black => &self.black_king_position,
+        };
+
+        if is_in_check(&self.board, king_position, self.turn) {
+            Ok(GameState::Check)
+        } else {
+            Ok(GameState::Ongoing)
+        }
     }
 
     pub fn get_player_turn(&self) -> Turn {
@@ -278,77 +307,141 @@ impl ChessGame {
     pub fn get_game_state(&self) -> GameState {
         self.state
     }
-
 }
 
 // Does not yet handle king moving to close
-fn is_in_check(board: &Board<ColouredPiece<Piece>>, king_position: &BoardPosition, colour: ColouredPiece<()>) -> bool {
+pub fn is_in_check(
+    board: &Board<Color<Piece>>,
+    king_position: &BoardPosition,
+    player_color: Turn,
+) -> bool {
     // Check if pawn causes king to be in check
-    match colour {
-        ColouredPiece::White(_) => {
-            if check_by_pawn(board, king_position, (-1, 1), ColouredPiece::Black(Piece::new_black_pawn()))||
-                check_by_pawn(board, king_position, (1, 1), ColouredPiece::Black(Piece::new_black_pawn())) {
+    match player_color {
+        Turn::White => {
+            if check_by_pawn(board, king_position, vec![(-1, 1), (1, 1)], BLACK_PAWN) {
                 return true;
             }
         }
-        ColouredPiece::Black(_) => {
-            if check_by_pawn(board, king_position, (-1, -1), ColouredPiece::White(Piece::new_white_pawn()))||
-                check_by_pawn(board, king_position, (1, -1), ColouredPiece::White(Piece::new_white_pawn())) {
+        Turn::Black => {
+            if check_by_pawn(board, king_position, vec![(-1, -1), (1, -1)], WHITE_PAWN) {
                 return true;
             }
         }
     }
 
-    let colour = match colour {
-        ColouredPiece::White(_) => ColouredPiece::White(Piece::Queen),
-        ColouredPiece::Black(_) => ColouredPiece::Black(Piece::Queen),
-        
-    };
-
-    let vectors = vec![(ColouredPiece::White(Piece::Rook).get_movement_base_vector(), vec![Piece::Rook, Piece::Queen]), (ColouredPiece::White(Piece::Bishop).get_movement_base_vector(), vec![Piece::Bishop, Piece::Queen]), (ColouredPiece::White(Piece::Knight).get_movement_base_vector(), vec![Piece::Knight])];
+    let move_sets = vec![
+        (
+            WHITE_ROOK.get_movement_base_vector(),
+            vec![Piece::Rook, Piece::Queen],
+        ),
+        (
+            WHITE_BISHOP.get_movement_base_vector(),
+            vec![Piece::Bishop, Piece::Queen],
+        ),
+        (WHITE_KNIGHT.get_movement_base_vector(), vec![Piece::Knight]),
+    ];
 
     // Check if queen, rook, or bishop causes king to be in check
-    if vectors.into_iter().any(|(vectors, pieces)| {
-        check_vector(board, king_position, vectors, pieces, colour)
-    }) {
-        return true;
-    }
-
-    false
+    move_sets.into_iter().any(|(move_set, pieces)| {
+        check_vector(board, king_position, move_set, pieces, player_color)
+    })
 }
 
-fn check_by_pawn(board: &Board<ColouredPiece<Piece>>, king_position: &BoardPosition, vector: (i8, i8), piece: ColouredPiece<Piece>) -> bool {
-    king_position.add(vector).and_then(|position| {
-        if board.get_index(&position).unwrap() == piece {
-            Ok(position)
-        }
-        else {
-            Err(ChessError::InvalidMove)
-        }
-    }).is_ok()
-}
-
-fn check_vector(board: &Board<ColouredPiece<Piece>>, position: &BoardPosition, move_set: Vec<(i8, i8)>, pieces: Vec<Piece>, colour: ColouredPiece<Piece>) -> bool {
-
+fn check_vector(
+    board: &Board<Color<Piece>>,
+    position: &BoardPosition,
+    move_set: Vec<(i8, i8)>,
+    pieces: Vec<Piece>,
+    player_color: Turn,
+) -> bool {
     move_set.into_iter().any(|base_vector| {
-        match evaluate_vector(board, &colour, base_vector, position).last() {
-            Some((position, move_type)) => {
-                return matches!(move_type, MoveType::Capture) &&
-                pieces.iter().any(|piece| {check_capture(board, position, *piece, colour)})
-            },
-            None => false
+        let number_of_steps = StepCount::Infinty.into();
+
+        match evaluate_vector(board, base_vector, number_of_steps, player_color, position).last() {
+            Some((position, MoveType::Capture)) => {
+                pieces.iter().any(|piece| match board.get_index(position) {
+                    Some(Color::White(new_piece)) | Some(Color::Black(new_piece)) => {
+                        *new_piece == *piece
+                    }
+                    _ => false,
+                })
+            }
+            _ => false,
         }
     })
 }
 
-fn check_capture(board: &Board<ColouredPiece<Piece>>, position: &BoardPosition, piece: Piece, colour: ColouredPiece<Piece>) -> bool {
-    match colour {
-        ColouredPiece::White(_) => {
-            board.get_index(position).unwrap() == ColouredPiece::Black(piece)
-        }
-        ColouredPiece::Black(_) => {
-            board.get_index(position).unwrap() == ColouredPiece::White(piece)
-        }
-    }
+fn check_by_pawn(
+    board: &Board<Color<Piece>>,
+    king_position: &BoardPosition,
+    vectors: Vec<(i8, i8)>,
+    piece: Color<Piece>,
+) -> bool {
+    vectors.into_iter().any(|vector| {
+        king_position
+            .add(vector)
+            .and_then(|position| {
+                if *board.get_index(&position) == Some(piece) {
+                    Ok(position)
+                } else {
+                    Err(ChessError::InvalidMove)
+                }
+            })
+            .is_ok()
+    })
 }
 
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn check_test_1() {
+        let mut board = Board::default();
+
+        board.set_index(&BoardPosition::from((E, One)), Some(NEW_WHITE_KING));
+        board.set_index(&BoardPosition::from((E, Eight)), Some(NEW_BLACK_KING));
+
+        let game = ChessGame {
+            board,
+            ..Default::default()
+        };
+
+        assert!(!is_in_check(
+            &game.board,
+            &game.white_king_position,
+            game.turn
+        ));
+        assert!(!is_in_check(
+            &game.board,
+            &game.black_king_position,
+            Turn::Black
+        ));
+    }
+
+    #[test]
+    fn check_test_2() {
+        let mut board = Board::default();
+
+        board.set_index(&BoardPosition::from((E, One)), Some(NEW_WHITE_KING));
+        board.set_index(&BoardPosition::from((E, Eight)), Some(NEW_BLACK_KING));
+        board.set_index(&BoardPosition::from((A, Eight)), Some(WHITE_ROOK));
+
+        let game = ChessGame {
+            board,
+            ..Default::default()
+        };
+
+        assert!(!is_in_check(
+            &game.board,
+            &game.white_king_position,
+            game.turn
+        ));
+        assert!(is_in_check(
+            &game.board,
+            &game.black_king_position,
+            Turn::Black
+        ));
+    }
+}

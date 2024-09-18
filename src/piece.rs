@@ -413,6 +413,13 @@ fn get_king_side_castle(
                 return;
             }
 
+            if is_in_check(board, &BoardPosition::from((F, One)), Turn::White) {
+                return
+            }
+            if is_in_check(board, &BoardPosition::from((G, One)), Turn::White) {
+                return
+            }
+
             move_map.set_index(&BoardPosition::from((G, One)), Some(MoveType::Move))
         }
         Color::Black(_) => {
@@ -423,7 +430,14 @@ fn get_king_side_castle(
                 return;
             }
 
-            move_map.set_index(&BoardPosition::from((G, One)), Some(MoveType::Move))
+            if is_in_check(board, &BoardPosition::from((F, Eight)), Turn::Black) {
+                return
+            }
+            if is_in_check(board, &BoardPosition::from((G, Eight)), Turn::Black) {
+                return
+            }
+            
+            move_map.set_index(&BoardPosition::from((G, Eight)), Some(MoveType::Move))
         }
     }
 }
@@ -445,6 +459,16 @@ fn get_queen_side_castle(
                 return;
             }
 
+            if is_in_check(board, &BoardPosition::from((B, One)), Turn::White) {
+                return
+            }
+            if is_in_check(board, &BoardPosition::from((C, One)), Turn::White) {
+                return
+            }
+            if is_in_check(board, &BoardPosition::from((D, One)), Turn::White) {
+                return
+            }
+
             move_map.set_index(&BoardPosition::from((B, One)), Some(MoveType::Move))
         }
         Color::Black(_) => {
@@ -458,7 +482,17 @@ fn get_queen_side_castle(
                 return;
             }
 
-            move_map.set_index(&BoardPosition::from((B, One)), Some(MoveType::Move))
+            if is_in_check(board, &BoardPosition::from((B, Eight)), Turn::Black) {
+                return
+            }
+            if is_in_check(board, &BoardPosition::from((C, Eight)), Turn::Black) {
+                return
+            }
+            if is_in_check(board, &BoardPosition::from((D, Eight)), Turn::Black) {
+                return
+            }
+
+            move_map.set_index(&BoardPosition::from((B, Eight)), Some(MoveType::Move))
         }
     }
 }

@@ -1,14 +1,12 @@
+use std::collections::HashMap;
+
 use crate::piece::{
-    evaluate_vector, get_king_moves, get_pawn_moves, get_standard_valid_move,
-    Color, PawnState, Piece, StepCount, BLACK_BISHOP, BLACK_KNIGHT, BLACK_PAWN,
+    self, evaluate_vector, get_king_moves, get_pawn_moves, get_standard_valid_move, CheckState,
+    Color, PawnState, Piece, StepCount, BLACK_BISHOP, BLACK_KING, BLACK_KNIGHT, BLACK_PAWN,
     BLACK_QUEEN, BLACK_ROOK, NEW_BLACK_KING, NEW_BLACK_PAWN, NEW_WHITE_KING, NEW_WHITE_PAWN,
-    WHITE_BISHOP, WHITE_KNIGHT, WHITE_PAWN, WHITE_QUEEN, WHITE_ROOK,
+    WHITE_BISHOP, WHITE_KING, WHITE_KNIGHT, WHITE_PAWN, WHITE_QUEEN, WHITE_ROOK,
 };
-use crate::position::{
-    BoardPosition,
-    File::*,
-    Rank::*,
-};
+use crate::position::{BoardPosition, File::*, Rank::*};
 use crate::ChessError;
 
 #[derive(Clone, Copy)]
@@ -17,11 +15,13 @@ pub enum Turn {
     Black,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum GameState {
     Ongoing,
     Check,
     CheckMate,
+    Draw,
+    Promotion(BoardPosition, Board<MoveType>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -30,23 +30,22 @@ pub enum MoveType {
     Capture,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Board<T> {
-    board: [[Option<T>; 8]; 8],
-    position: BoardPosition,
+    board: [Option<T>; 64],
 }
 
 impl<T> Board<T> {
     pub fn get_index(&self, position: &BoardPosition) -> &Option<T> {
         let (file, rank) = position.into();
 
-        &self.board[usize::from(file)][usize::from(rank)]
+        &self.board[(7 - usize::from(file)) + usize::from(rank) * 8]
     }
 
     pub fn set_index(&mut self, position: &BoardPosition, value: Option<T>) {
         let (file, rank) = position.into();
 
-        self.board[usize::from(file)][usize::from(rank)] = value;
+        self.board[(7 - usize::from(file)) + usize::from(rank) * 8] = value;
     }
 }
 
@@ -55,39 +54,93 @@ where
     T: Copy,
 {
     fn default() -> Board<T> {
-        Board {
-            board: [[None; 8]; 8],
-            position: BoardPosition::from((A, Eight)),
-        }
+        Board { board: [None; 64] }
     }
 }
 
-impl<T> Iterator for Board<T>
-where
-    T: Clone,
-{
-    type Item = T;
+impl ChessGame {
+    // does not handle check or check mate, castling and en pasant
+    pub fn from_fen(fen_string: String) -> Result<Self, ChessError> {
+        let mut fen = fen_string.split_whitespace();
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let item = (*self.get_index(&self.position)).clone();
+        let board_string = fen.next().unwrap();
+        let turn_string = fen.next().unwrap();
+        let castle_string = fen.next().unwrap();
+        let en_passant_string = fen.next().unwrap();
+        let half_clock_string = fen.next().unwrap();
+        let full_move_string = fen.next().unwrap();
 
-        self.position = match self.position.add((1, 0)) {
-            Ok(pos) => pos,
-            Err(_) => match self.position.add((-8, -1)) {
-                Ok(pos) => pos,
-                Err(_) => return None,
-            },
+        let mut board: Board<Color<Piece>> = Board::default();
+
+        let temp_board = &mut board.board.iter_mut();
+
+        let mut white_king_position = BoardPosition::from((E, One));
+        let mut black_king_position = BoardPosition::from((E, Eight));
+
+        for (i, char) in board_string.chars().enumerate() {
+            match char {
+                '1'..='8' => {
+                    temp_board.skip(char.to_digit(10).unwrap() as usize);
+                }
+                'k' => {
+                    *temp_board.next().unwrap() = {
+                        black_king_position =
+                            BoardPosition::try_from(((i / 8) as u8, (i % 8) as u8)).unwrap();
+                        Some(BLACK_KING)
+                    }
+                }
+                'q' => *temp_board.next().unwrap() = Some(BLACK_QUEEN),
+                'b' => *temp_board.next().unwrap() = Some(BLACK_BISHOP),
+                'n' => *temp_board.next().unwrap() = Some(BLACK_KNIGHT),
+                'r' => *temp_board.next().unwrap() = Some(BLACK_ROOK),
+                'p' => *temp_board.next().unwrap() = Some(BLACK_PAWN),
+                'K' => {
+                    *temp_board.next().unwrap() = {
+                        white_king_position =
+                            BoardPosition::try_from(((i / 8) as u8, (i % 8) as u8)).unwrap();
+                        Some(WHITE_KING)
+                    }
+                }
+                'Q' => *temp_board.next().unwrap() = Some(WHITE_QUEEN),
+                'B' => *temp_board.next().unwrap() = Some(WHITE_BISHOP),
+                'N' => *temp_board.next().unwrap() = Some(WHITE_KNIGHT),
+                'R' => *temp_board.next().unwrap() = Some(WHITE_ROOK),
+                'P' => *temp_board.next().unwrap() = Some(WHITE_PAWN),
+                _ => return Err(ChessError::IncorrectFenString),
+            }
+        }
+
+        let turn = match turn_string {
+            "w" => Turn::White,
+            "b" => Turn::Black,
+            _ => return Err(ChessError::IncorrectFenString),
         };
 
-        item
+        let half_move = half_clock_string.parse().unwrap();
+        let full_move = full_move_string.parse().unwrap();
+
+        let state = GameState::Ongoing;
+
+        let en_passant = Vec::new();
+
+        // Cannot handle earlier positions
+        let white_possition_history = HashMap::new();
+        let black_possition_history = HashMap::new();
+
+        Ok(Self {
+            board,
+            turn,
+            en_passant,
+            white_king_position,
+            black_king_position,
+            half_move,
+            full_move,
+            state,
+            white_possition_history,
+            black_possition_history,
+        })
     }
 }
-
-// impl Board<Color<Piece>> {
-//     fn from_fen(&str) -> Result<Self, > {
-//
-//     }
-// }
 
 pub struct ChessGame {
     pub board: Board<Color<Piece>>,
@@ -96,6 +149,10 @@ pub struct ChessGame {
     white_king_position: BoardPosition,
     black_king_position: BoardPosition,
     en_passant: Vec<BoardPosition>,
+    half_move: u8,
+    full_move: u8,
+    white_possition_history: HashMap<Board<Color<Piece>>, u8>,
+    black_possition_history: HashMap<Board<Color<Piece>>, u8>,
 }
 
 impl Default for ChessGame {
@@ -151,6 +208,10 @@ impl Default for ChessGame {
             white_king_position,
             black_king_position,
             en_passant: Vec::new(),
+            half_move: 0,
+            full_move: 0,
+            white_possition_history: HashMap::new(),
+            black_possition_history: HashMap::new(),
         }
     }
 }
@@ -199,6 +260,7 @@ impl ChessGame {
             None => return Err(ChessError::NoPiece),
         };
 
+        // Check if move is valid
         let moves = self
             .get_valid_moves(initial_position)
             .ok_or(ChessError::NoMoves)?;
@@ -207,6 +269,7 @@ impl ChessGame {
             .get_index(desired_position)
             .ok_or(ChessError::InvalidMove)?;
 
+        // Update list of pawn that can be taken using en passant
         self.en_passant = Vec::new();
 
         match piece {
@@ -221,6 +284,7 @@ impl ChessGame {
             _ => {}
         }
 
+        // Remove castling options if appliceble
         let king_position = match self.turn {
             Turn::White => &self.white_king_position,
             Turn::Black => &self.black_king_position,
@@ -231,27 +295,23 @@ impl ChessGame {
                 Some(Color::White(Piece::King {
                     castling_state: (true, queen_side),
                     ..
-                })) if *initial_position == BoardPosition::from((H, One)) => {
-                    self.board.set_index(
-                        king_position,
-                        Some(Color::White(Piece::King {
-                            check_state: None,
-                            castling_state: (false, *queen_side)
-                        })),
-                    )
-                }
+                })) if *initial_position == BoardPosition::from((H, One)) => self.board.set_index(
+                    king_position,
+                    Some(Color::White(Piece::King {
+                        check_state: None,
+                        castling_state: (false, *queen_side),
+                    })),
+                ),
                 Some(Color::White(Piece::King {
                     castling_state: (king_side, true),
                     ..
-                })) if *initial_position == BoardPosition::from((A, One)) => {
-                    self.board.set_index(
-                        king_position,
-                        Some(Color::White(Piece::King {
-                            check_state: None,
-                            castling_state: (*king_side, false)
-                        })),
-                    )
-                }
+                })) if *initial_position == BoardPosition::from((A, One)) => self.board.set_index(
+                    king_position,
+                    Some(Color::White(Piece::King {
+                        check_state: None,
+                        castling_state: (*king_side, false),
+                    })),
+                ),
                 Some(Color::Black(Piece::King {
                     castling_state: (true, queen_side),
                     ..
@@ -260,7 +320,7 @@ impl ChessGame {
                         king_position,
                         Some(Color::Black(Piece::King {
                             check_state: None,
-                            castling_state: (false, *queen_side)
+                            castling_state: (false, *queen_side),
                         })),
                     )
                 }
@@ -272,7 +332,7 @@ impl ChessGame {
                         king_position,
                         Some(Color::Black(Piece::King {
                             check_state: None,
-                            castling_state: (*king_side, false)
+                            castling_state: (*king_side, false),
                         })),
                     )
                 }
@@ -280,13 +340,67 @@ impl ChessGame {
             }
         }
 
+        // Performe move
         self.board.set_index(initial_position, None);
         self.board.set_index(desired_position, Some(piece));
 
+        if matches!(
+            piece,
+            Color::White(Piece::Pawn { .. }) | Color::Black(Piece::Pawn { .. })
+        ) && ((matches!(self.turn, Turn::White) && matches!(desired_position.rank, Eight))
+            | (matches!(self.turn, Turn::Black) && matches!(desired_position.rank, One)))
+        {
+            Ok(GameState::Promotion(desired_position.clone(), moves.clone()))
+        } else {
+            Ok(self.progress_turn(&piece, &moves, desired_position))
+        }
+    }
+
+    fn progress_turn(
+        &mut self,
+        piece: &Color<Piece>,
+        moves: &Board<MoveType>,
+        desired_position: &BoardPosition,
+    ) -> GameState {
+        // Comply with repeated position
+        match self.turn {
+            Turn::White => {
+                match self.white_possition_history.get(&self.board) {
+                    Some(amount) => self
+                        .white_possition_history
+                        .insert(self.board.clone(), amount + 1),
+                    None => self.white_possition_history.insert(self.board.clone(), 1),
+                };
+            }
+            Turn::Black => {
+                match self.black_possition_history.get(&self.board) {
+                    Some(amount) => self
+                        .black_possition_history
+                        .insert(self.board.clone(), amount + 1),
+                    None => self.black_possition_history.insert(self.board.clone(), 1),
+                };
+            }
+        };
+
+        // Move to next move
         self.turn = match self.turn {
             Turn::White => Turn::Black,
             Turn::Black => Turn::White,
         };
+
+        self.full_move += 1;
+
+        // Performe check to comply with 50-move draw rule
+        if matches!(moves.get_index(desired_position), Some(MoveType::Capture))
+            || matches!(
+                piece,
+                Color::White(Piece::Pawn { .. }) | Color::Black(Piece::Pawn { .. })
+            )
+        {
+            self.half_move = 0;
+        } else {
+            self.half_move += 1;
+        }
 
         let king_position = match self.turn {
             Turn::White => &self.white_king_position,
@@ -294,18 +408,53 @@ impl ChessGame {
         };
 
         if is_in_check(&self.board, king_position, self.turn) {
-            Ok(GameState::Check)
+            GameState::Check
+        } else if self.half_move >= 100 {
+            GameState::Draw
         } else {
-            Ok(GameState::Ongoing)
+            GameState::Ongoing
         }
     }
 
-    pub fn get_player_turn(&self) -> Turn {
-        self.turn
+    pub fn request_draw_due_to_repeated_position(&self) -> bool {
+        self.white_possition_history
+            .values()
+            .any(|value| *value >= 3)
+            || self
+                .black_possition_history
+                .values()
+                .any(|value| *value >= 3)
     }
 
-    pub fn get_game_state(&self) -> GameState {
-        self.state
+    pub fn promote_pawn(
+        &mut self,
+        pawn_position: &BoardPosition,
+        promotion_target: Piece,
+        moves: &Board<MoveType>,
+    ) -> Result<GameState, ChessError> {
+        let piece = self.get_index(pawn_position).unwrap();
+
+        if matches!(piece, Color::White(Piece::Pawn { .. }))
+            && (matches!(self.turn, Turn::White) && matches!(pawn_position.rank, Eight))
+        {
+            self.board
+                .set_index(pawn_position, Some(Color::White(promotion_target)))
+        } else if matches!(piece, Color::Black(Piece::Pawn { .. }))
+            && (matches!(self.turn, Turn::Black) && matches!(pawn_position.rank, One))
+        {
+            self.board
+                .set_index(pawn_position, Some(Color::Black(promotion_target)))
+        }
+
+        Ok(self.progress_turn(&piece, moves, pawn_position))
+    }
+
+    pub fn get_player_turn(&self) -> &Turn {
+        &self.turn
+    }
+
+    pub fn get_game_state(&self) -> &GameState {
+        &self.state
     }
 }
 

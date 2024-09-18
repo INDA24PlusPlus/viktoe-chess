@@ -10,4 +10,5 @@ pub enum ChessError {
     NoMoves,
     InvalidMove,
     SelfCheck,
+    IncorrectFenString,
 }

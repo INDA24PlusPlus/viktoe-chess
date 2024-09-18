@@ -5,8 +5,8 @@ use Rank::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoardPosition {
-    file: File,
-    rank: Rank,
+    pub file: File,
+    pub rank: Rank,
 }
 
 #[derive(Debug, Clone, PartialEq)]

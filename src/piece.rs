@@ -82,7 +82,7 @@ impl Piece {
     const BLACK_PAWN_MOVES: [(i8, i8); 1] = [(0, -1)];
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Color<T> {
     White(T),
     Black(T),
@@ -97,7 +97,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Eq, Hash)]
 pub enum Piece {
     King {
         check_state: Option<CheckState>,
@@ -155,14 +155,14 @@ impl<T> Color<T> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PawnState {
     FirstMove,
     PosibleEnPassant,
     Default,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CheckState {
     CheckMate,
     Check,

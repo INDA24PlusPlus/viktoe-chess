@@ -9,10 +9,10 @@ use crate::board::{is_in_check, Board, MoveType, Turn};
 use crate::position::BoardPosition;
 use shorthands::*;
 
-pub use king_moves::get_king_moves;
-pub use pawn_moves::get_pawn_moves;
+pub(crate) use king_moves::get_king_moves;
+pub(crate) use pawn_moves::get_pawn_moves;
 
-type CastlingState = (bool, bool);
+pub type CastlingState = (bool, bool);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Color<T> {
@@ -56,7 +56,7 @@ pub enum StepCount {
 }
 
 impl Color<Piece> {
-    pub fn get_movement_base_vector(&self) -> Vec<(i8, i8)> {
+    pub(crate) fn get_movement_base_vector(&self) -> Vec<(i8, i8)> {
         match self {
             Color::White(Piece::Pawn { .. }) => WHITE_PAWN_MOVES.to_vec(),
             Color::Black(Piece::Pawn { .. }) => BLACK_PAWN_MOVES.to_vec(),
@@ -71,7 +71,7 @@ impl Color<Piece> {
         }
     }
 
-    pub fn get_number_of_moves(&self) -> StepCount {
+    pub(crate) fn get_number_of_moves(&self) -> StepCount {
         match self {
             Color::White(piece) | Color::Black(piece) => match piece {
                 Piece::King { .. } => StepCount::One,

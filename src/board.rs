@@ -74,7 +74,7 @@ impl ChessGame {
         self.board.get(position)
     }
 
-    pub fn get_king_position(&self, player_color: &Turn) -> &BoardPosition {
+    pub(crate) fn get_king_position(&self, player_color: &Turn) -> &BoardPosition {
         match player_color {
             Turn::White => &self.white_king_position,
             Turn::Black => &self.black_king_position,

@@ -1,6 +1,7 @@
+mod prelude;
 mod test;
-pub mod board;
-pub mod piece;
+mod board;
+mod piece;
 pub mod position;
 
 #[derive(Debug)]
@@ -11,4 +12,8 @@ pub enum ChessError {
     InvalidMove,
     SelfCheck,
     IncorrectFenString,
+    InternalError,
 }
+
+pub use board::{ChessGame, Board, };
+

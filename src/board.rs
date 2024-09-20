@@ -134,10 +134,23 @@ impl ChessGame {
         }
 
         // Capture piece by en passant
-        if matches!(move_type, MoveType::Capture) && matches!(piece.get_internal(), Piece::Pawn {..}) && self.get_square(desired_position).is_none() {
+        if matches!(move_type, MoveType::Capture)
+            && matches!(piece.get_internal(), Piece::Pawn { .. })
+            && self.get_square(desired_position).is_none()
+        {
             match self.turn {
-                Turn::White => self.board.set(&desired_position.add((0, -1)).expect("Taking by en passant, captured piece should be on board"), None),
-                Turn::Black => self.board.set(&desired_position.add((0, 1)).expect("Taking by en passant, captured piece should be on board"), None),
+                Turn::White => self.board.set(
+                    &desired_position
+                        .add((0, -1))
+                        .expect("Taking by en passant, captured piece should be on board"),
+                    None,
+                ),
+                Turn::Black => self.board.set(
+                    &desired_position
+                        .add((0, 1))
+                        .expect("Taking by en passant, captured piece should be on board"),
+                    None,
+                ),
             }
         }
 
@@ -164,7 +177,7 @@ impl ChessGame {
         self.board.set(initial_position, None);
         self.board.set(desired_position, Some(piece.clone()));
 
-        if matches!(piece.get_internal(), Piece::King {..}) {
+        if matches!(piece.get_internal(), Piece::King { .. }) {
             match self.turn {
                 Turn::White => self.white_king_position = desired_position.clone(),
                 Turn::Black => self.black_king_position = desired_position.clone(),
@@ -175,11 +188,7 @@ impl ChessGame {
             && ((matches!(self.turn, Turn::White) && matches!(desired_position.get_rank(), Eight))
                 | (matches!(self.turn, Turn::Black) && matches!(desired_position.get_rank(), One)))
         {
-            GameState::Promotion(
-                desired_position.clone(),
-                piece.clone(),
-                move_type.clone()
-            )
+            GameState::Promotion(desired_position.clone(), piece.clone(), move_type.clone())
         } else {
             self.progress_turn(piece.get_internal(), move_type)
         };
@@ -217,9 +226,7 @@ impl ChessGame {
         self.full_move += 1;
 
         // Performe check to comply with 50-move draw rule
-        if matches!(move_type, MoveType::Capture)
-            || matches!(piece, Piece::Pawn { .. })
-        {
+        if matches!(move_type, MoveType::Capture) || matches!(piece, Piece::Pawn { .. }) {
             self.half_move = 0;
         } else {
             self.half_move += 1;
@@ -264,13 +271,10 @@ impl ChessGame {
                 .any(|value| *value >= 3)
     }
 
-    pub fn promote_pawn(
-        &mut self,
-        promotion_target: Piece,
-    ) -> Result<GameState, ChessError> {
-        let (pawn_position, piece, move_type)  = match &mut self.state {
+    pub fn promote_pawn(&mut self, promotion_target: Piece) -> Result<GameState, ChessError> {
+        let (pawn_position, piece, move_type) = match &mut self.state {
             GameState::Promotion(position, piece, move_type) => (position, piece, move_type),
-            _ => return Err(ChessError::InvalidMove)
+            _ => return Err(ChessError::InvalidMove),
         };
 
         // Checking pawn of same color has players turn on correct row (pawn cannot get to the
@@ -357,7 +361,6 @@ impl ChessGame {
     }
 }
 
-// Does not yet handle king moving to close
 pub(crate) fn is_in_check(
     board: &Board<Color<Piece>>,
     king_position: &BoardPosition,
@@ -374,6 +377,20 @@ pub(crate) fn is_in_check(
             if check_by_pawn(board, king_position, vec![(-1, -1), (1, -1)], &WHITE_PAWN) {
                 return true;
             }
+        }
+    }
+
+    for base_vector in WHITE_KING.get_movement_base_vector() {
+        match evaluate_vector(board, base_vector, 0..2, player_color, king_position).last() {
+            Some((position, MoveType::Capture))
+                if matches!(
+                    board.get(position).as_ref().unwrap().get_internal(),
+                    Piece::King { .. }
+                ) =>
+            {
+                return true
+            }
+            _ => {}
         }
     }
 
@@ -447,16 +464,8 @@ mod tests {
         board.set(&BoardPosition::from((E, One)), Some(NEW_WHITE_KING));
         board.set(&BoardPosition::from((E, Eight)), Some(NEW_BLACK_KING));
 
-        assert!(!is_in_check(
-            &board,
-            &(E, One).into(),
-            &Turn::White,
-        ));
-        assert!(!is_in_check(
-            &board,
-            &(E, Eight).into(),
-            &Turn::Black
-        ));
+        assert!(!is_in_check(&board, &(E, One).into(), &Turn::White,));
+        assert!(!is_in_check(&board, &(E, Eight).into(), &Turn::Black));
     }
 
     #[test]
@@ -467,16 +476,8 @@ mod tests {
         board.set(&BoardPosition::from((E, Eight)), Some(NEW_BLACK_KING));
         board.set(&BoardPosition::from((A, Eight)), Some(WHITE_ROOK));
 
-        assert!(!is_in_check(
-            &board,
-            &(E, One).into(),
-            &Turn::White,
-        ));
-        assert!(is_in_check(
-            &board,
-            &(E, Eight).into(),
-            &Turn::Black
-        ));
+        assert!(!is_in_check(&board, &(E, One).into(), &Turn::White,));
+        assert!(is_in_check(&board, &(E, Eight).into(), &Turn::Black));
     }
 
     #[test]
@@ -493,15 +494,26 @@ mod tests {
     fn remove_castling_correct() {
         let mut game = ChessGame::default();
 
-        game.move_piece(&(E, Two).into(), &(E, Four).into()).unwrap();
-        game.move_piece(&(E, Seven).into(), &(E, Five).into()).unwrap();
+        game.move_piece(&(E, Two).into(), &(E, Four).into())
+            .unwrap();
+        game.move_piece(&(E, Seven).into(), &(E, Five).into())
+            .unwrap();
         game.move_piece(&(E, One).into(), &(E, Two).into()).unwrap();
 
-        let king = game.get_square(&(E, Two).into()).as_ref().unwrap().get_internal();
+        let king = game
+            .get_square(&(E, Two).into())
+            .as_ref()
+            .unwrap()
+            .get_internal();
 
         println!("{:?}", king);
 
-        assert!(matches!(king, Piece::King { check_state: _, castling_state: (false, false) }));
-        
+        assert!(matches!(
+            king,
+            Piece::King {
+                check_state: _,
+                castling_state: (false, false)
+            }
+        ));
     }
 }

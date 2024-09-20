@@ -216,7 +216,7 @@ enum Rank {
     - [x] Rook
     - [x] Pawn
 - [x] Check
-- [ ] Checkmate
+- [x] Checkmate
 - [x] Board repetition
 - [x] 50-move rule
 - [ ] No mating pieces

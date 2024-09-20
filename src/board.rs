@@ -3,11 +3,11 @@ mod trait_implementation;
 
 use std::collections::HashMap;
 
-use crate::piece::shorthands::*;
+use crate::piece::{self, shorthands::*};
 use crate::piece::{
     evaluate_vector, get_king_moves, get_pawn_moves, Color, PawnState, Piece, StepCount,
 };
-use crate::position::{BoardPosition, File::*, Rank::*};
+use crate::position::{self, BoardPosition, File::*, Rank::*};
 use crate::ChessError;
 
 #[derive(Clone)]
@@ -22,7 +22,7 @@ pub enum GameState {
     Check,
     CheckMate,
     Draw,
-    Promotion(BoardPosition, Board<MoveType>),
+    Promotion(BoardPosition, Color<Piece>, MoveType),
 }
 
 #[derive(Debug, Clone)]
@@ -95,7 +95,6 @@ impl ChessGame {
         })
     }
 
-    // does not handle checkmate
     pub fn move_piece(
         &mut self,
         initial_position: &BoardPosition,
@@ -116,7 +115,7 @@ impl ChessGame {
             .get_valid_moves(initial_position)
             .ok_or(ChessError::NoMoves)?;
 
-        moves
+        let move_type = moves
             .get(desired_position)
             .as_ref()
             .ok_or(ChessError::InvalidMove)?;
@@ -157,26 +156,23 @@ impl ChessGame {
         self.board.set(initial_position, None);
         self.board.set(desired_position, Some(piece.clone()));
 
-        if matches!(piece.get_internal(), Piece::Pawn { .. })
+        self.state = if matches!(piece.get_internal(), Piece::Pawn { .. })
             && ((matches!(self.turn, Turn::White) && matches!(desired_position.get_rank(), Eight))
                 | (matches!(self.turn, Turn::Black) && matches!(desired_position.get_rank(), One)))
         {
-            Ok(GameState::Promotion(
+            GameState::Promotion(
                 desired_position.clone(),
-                moves.clone(),
-            ))
+                piece.clone(),
+                move_type.clone()
+            )
         } else {
-            Ok(self.progress_turn(
-                &piece,
-                moves
-                    .get(desired_position)
-                    .as_ref()
-                    .expect("Already performed move should be valid"),
-            ))
-        }
+            self.progress_turn(&piece.get_internal(), &move_type)
+        };
+
+        Ok(self.state.clone())
     }
 
-    fn progress_turn(&mut self, piece: &Color<Piece>, move_type: &MoveType) -> GameState {
+    fn progress_turn(&mut self, piece: &Piece, move_type: &MoveType) -> GameState {
         // Comply with repeated position
         match self.turn {
             Turn::White => {
@@ -207,20 +203,40 @@ impl ChessGame {
 
         // Performe check to comply with 50-move draw rule
         if matches!(move_type, MoveType::Capture)
-            || matches!(piece.get_internal(), Piece::Pawn { .. })
+            || matches!(piece, Piece::Pawn { .. })
         {
             self.half_move = 0;
         } else {
             self.half_move += 1;
         }
 
-        if is_in_check(&self.board, self.get_king_position(&self.turn), &self.turn) {
-            GameState::Check
+        self.state = if is_in_check(&self.board, self.get_king_position(&self.turn), &self.turn) {
+            // If the player whos turn it is next can move any piece they are not in mate
+            if self
+                .board
+                .board
+                .iter()
+                .zip(position::iter())
+                .filter(|(piece, _)| {
+                    if let Some(piece) = piece.as_ref() {
+                        piece.same_color(&self.turn)
+                    } else {
+                        false
+                    }
+                })
+                .any(|(_, position)| self.get_valid_moves(&position).is_some())
+            {
+                GameState::Check
+            } else {
+                GameState::CheckMate
+            }
         } else if self.half_move >= 100 {
             GameState::Draw
         } else {
             GameState::Ongoing
-        }
+        };
+
+        self.state.clone()
     }
 
     pub fn request_draw_due_to_repeated_position(&self) -> bool {
@@ -235,29 +251,26 @@ impl ChessGame {
 
     pub fn promote_pawn(
         &mut self,
-        pawn_position: &BoardPosition,
         promotion_target: Piece,
-        move_type: &MoveType,
     ) -> Result<GameState, ChessError> {
-        let piece = self
-            .board
-            .get_mut(pawn_position)
-            .as_mut()
-            .ok_or(ChessError::InvalidMove)?;
+        let (pawn_position, piece, move_type)  = match &mut self.state {
+            GameState::Promotion(position, piece, move_type) => (position, piece, move_type),
+            _ => return Err(ChessError::InvalidMove)
+        };
 
         // Checking pawn of same color has players turn on correct row (pawn cannot get to the
         // first or last rank exept on the other side)
         if matches!(piece.get_internal(), Piece::Pawn { .. })
             && piece.same_color(&self.turn)
-            && (matches!(pawn_position.rank, Eight)
-            || matches!(pawn_position.rank, One))
+            && (matches!(pawn_position.rank, Eight) || matches!(pawn_position.rank, One))
         {
             piece.change_internal(promotion_target)
         }
 
         let piece = piece.clone();
+        let move_type = move_type.clone();
 
-        Ok(self.progress_turn(&piece, move_type))
+        Ok(self.progress_turn(piece.get_internal(), &move_type))
     }
 
     pub fn get_player_turn(&self) -> &Turn {

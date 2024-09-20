@@ -2,6 +2,9 @@ mod trait_implementation;
 
 use crate::ChessError;
 
+pub const FILE: [File; 8] = [File::A, File::B, File::C, File::D, File::E, File::F, File::G, File::H];
+pub const RANK: [Rank; 8] = [Rank::One, Rank::Two, Rank::Three, Rank::Four, Rank::Five, Rank::Six, Rank::Seven, Rank::Eight];
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum File {
     A,
@@ -62,6 +65,13 @@ impl BoardPosition {
 
         BoardPosition::try_from((new_file, new_rank))
     }
+}
+
+pub fn iter() -> Vec<BoardPosition> {
+    RANK.into_iter().map(|rank| {
+        let rank = rank.clone();
+        FILE.into_iter().map( move |file| BoardPosition::from((file, (rank).clone())))
+    }).flatten().collect()
 }
 
 #[cfg(test)]

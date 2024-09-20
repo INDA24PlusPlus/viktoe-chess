@@ -234,4 +234,3 @@ enum Rank {
 Castling state does not change
 When castling, rook does not move
 King can move into each others space
-Pawn is not taken by en passant

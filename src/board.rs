@@ -133,7 +133,13 @@ impl ChessGame {
             }
         }
 
-        // Handle taking by en passant
+        // Capture piece by en passant
+        if matches!(move_type, MoveType::Capture) && matches!(piece.get_internal(), Piece::Pawn {..}) && self.get_square(desired_position).is_none() {
+            match self.turn {
+                Turn::White => self.board.set(&desired_position.add((0, -1)).expect("Taking by en passant, captured piece should be on board"), None),
+                Turn::Black => self.board.set(&desired_position.add((0, 1)).expect("Taking by en passant, captured piece should be on board"), None),
+            }
+        }
 
         self.en_passant = Vec::new();
 

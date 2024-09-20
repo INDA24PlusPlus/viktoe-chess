@@ -31,7 +31,7 @@ pub enum MoveType {
     Capture,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Board<T> {
     board: [Option<T>; 64],
 }
@@ -133,6 +133,8 @@ impl ChessGame {
             }
         }
 
+        // Handle taking by en passant
+
         self.en_passant = Vec::new();
 
         // if the piece is a pawn that on its first move moved to the fourth or fith rank allow it
@@ -156,6 +158,13 @@ impl ChessGame {
         self.board.set(initial_position, None);
         self.board.set(desired_position, Some(piece.clone()));
 
+        if matches!(piece.get_internal(), Piece::King {..}) {
+            match self.turn {
+                Turn::White => self.white_king_position = desired_position.clone(),
+                Turn::Black => self.black_king_position = desired_position.clone(),
+            }
+        }
+
         self.state = if matches!(piece.get_internal(), Piece::Pawn { .. })
             && ((matches!(self.turn, Turn::White) && matches!(desired_position.get_rank(), Eight))
                 | (matches!(self.turn, Turn::Black) && matches!(desired_position.get_rank(), One)))
@@ -166,7 +175,7 @@ impl ChessGame {
                 move_type.clone()
             )
         } else {
-            self.progress_turn(&piece.get_internal(), &move_type)
+            self.progress_turn(piece.get_internal(), move_type)
         };
 
         Ok(self.state.clone())
@@ -283,6 +292,7 @@ impl ChessGame {
 }
 
 impl ChessGame {
+    // If king_position is out of sync will not remove
     fn remove_castling_options(
         &mut self,
         piece: &Color<Piece>,
@@ -341,7 +351,7 @@ impl ChessGame {
     }
 }
 
-// Does not yet handle king moving to close or if the piece that threatens is pined
+// Does not yet handle king moving to close
 pub(crate) fn is_in_check(
     board: &Board<Color<Piece>>,
     king_position: &BoardPosition,
@@ -431,19 +441,14 @@ mod tests {
         board.set(&BoardPosition::from((E, One)), Some(NEW_WHITE_KING));
         board.set(&BoardPosition::from((E, Eight)), Some(NEW_BLACK_KING));
 
-        let game = ChessGame {
-            board,
-            ..Default::default()
-        };
-
         assert!(!is_in_check(
-            &game.board,
-            &game.white_king_position,
-            &game.turn
+            &board,
+            &(E, One).into(),
+            &Turn::White,
         ));
         assert!(!is_in_check(
-            &game.board,
-            &game.black_king_position,
+            &board,
+            &(E, Eight).into(),
             &Turn::Black
         ));
     }
@@ -456,20 +461,41 @@ mod tests {
         board.set(&BoardPosition::from((E, Eight)), Some(NEW_BLACK_KING));
         board.set(&BoardPosition::from((A, Eight)), Some(WHITE_ROOK));
 
-        let game = ChessGame {
-            board,
-            ..Default::default()
-        };
-
         assert!(!is_in_check(
-            &game.board,
-            &game.white_king_position,
-            &game.turn
+            &board,
+            &(E, One).into(),
+            &Turn::White,
         ));
         assert!(is_in_check(
-            &game.board,
-            &game.black_king_position,
+            &board,
+            &(E, Eight).into(),
             &Turn::Black
         ));
+    }
+
+    #[test]
+    fn check_test_3() {
+        let mut board = Board::default();
+
+        board.set(&(E, One).into(), Some(NEW_WHITE_KING));
+        board.set(&(D, Two).into(), Some(BLACK_PAWN));
+
+        assert!(is_in_check(&board, &(E, One).into(), &Turn::White));
+    }
+
+    #[test]
+    fn remove_castling_correct() {
+        let mut game = ChessGame::default();
+
+        game.move_piece(&(E, Two).into(), &(E, Four).into()).unwrap();
+        game.move_piece(&(E, Seven).into(), &(E, Five).into()).unwrap();
+        game.move_piece(&(E, One).into(), &(E, Two).into()).unwrap();
+
+        let king = game.get_square(&(E, Two).into()).as_ref().unwrap().get_internal();
+
+        println!("{:?}", king);
+
+        assert!(matches!(king, Piece::King { check_state: _, castling_state: (false, false) }));
+        
     }
 }

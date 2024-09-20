@@ -68,10 +68,10 @@ impl BoardPosition {
 }
 
 pub fn iter() -> Vec<BoardPosition> {
-    RANK.into_iter().map(|rank| {
+    RANK.into_iter().rev().flat_map(|rank| {
         let rank = rank.clone();
         FILE.into_iter().map( move |file| BoardPosition::from((file, (rank).clone())))
-    }).flatten().collect()
+    }).collect()
 }
 
 #[cfg(test)]
@@ -95,4 +95,11 @@ mod tests {
             assert_eq!(*pos, BoardPosition::try_from((i as u8, 0)).unwrap());
         }
     }
+
+    #[test]
+    fn board_possition_iter() {
+        assert_eq!(iter().into_iter().next().unwrap(), BoardPosition::from((A, Eight)));
+        assert_eq!(iter().into_iter().last().unwrap(), BoardPosition::from((H, One)));
+    }
+    
 }

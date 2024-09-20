@@ -130,15 +130,15 @@ impl Color<Piece> {
             for (position, move_type) in
                 evaluate_vector(board, base_vector, number_of_steps, player_color, position)
                     .into_iter()
-                    .map(|(position, move_type)| {
+                    .map(|(new_position, move_type)| {
                         let mut test_board = board.clone();
-                        test_board.set(&position, Some(self.clone()));
-                        test_board.set(&position, None);
+                        test_board.set(&new_position, Some(self.clone()));
+                        test_board.set(position, None);
 
                         if is_in_check(&test_board, king_position, player_color) {
-                            (position, None)
+                            (new_position, None)
                         } else {
-                            (position, Some(move_type))
+                            (new_position, Some(move_type))
                         }
                     })
             {
@@ -149,6 +149,8 @@ impl Color<Piece> {
     }
 }
 
+// Return a vector containing each square along a vector up to and including the first capture
+// or up to the edge of the board
 pub(crate) fn evaluate_vector(
     board: &Board<Color<Piece>>,
     base_vector: (i8, i8),
@@ -156,11 +158,14 @@ pub(crate) fn evaluate_vector(
     player_color: &Turn,
     position: &BoardPosition,
 ) -> Vec<(BoardPosition, MoveType)> {
-    // Return a vector containing each square along a vector up to and including the first capture
-    // or up to the edge of the board
     number_of_steps
         .map_while(|current_amount| {
-            check_square(board, position, base_vector, current_amount, player_color)
+            let new_position = position
+                .clone()
+                .add(vector_multiplication(base_vector, current_amount))
+                .ok()?;
+
+            check_square(board, new_position, player_color)
         })
         .scan(0, |state, (position, move_type)| {
             if *state >= 1 {
@@ -178,29 +183,18 @@ pub(crate) fn evaluate_vector(
 
 fn check_square(
     board: &Board<Color<Piece>>,
-    position: &BoardPosition,
-    base_vector: (i8, i8),
-    current_amount: i8,
+    position: BoardPosition,
     player_color: &Turn,
 ) -> Option<(BoardPosition, MoveType)> {
-    let new_position = position
-        .clone()
-        .add(vector_multiplication(base_vector, current_amount))
-        .ok()?;
-
-    let square_on_new_position = board.get(&new_position);
-
-    let move_type = if let Some(piece) = square_on_new_position.as_ref() {
+    if let Some(piece) = board.get(&position).as_ref() {
         if piece.same_color(player_color) {
-            return None;
+            None
         } else {
-            MoveType::Capture
+            Some((position, MoveType::Capture))
         }
     } else {
-        MoveType::Move
-    };
-
-    Some((new_position, move_type))
+        Some((position, MoveType::Move))
+    }
 }
 
 fn vector_multiplication(vector: (i8, i8), scalar: i8) -> (i8, i8) {
@@ -209,5 +203,70 @@ fn vector_multiplication(vector: (i8, i8), scalar: i8) -> (i8, i8) {
 
 #[cfg(test)]
 mod tests {
-    fn test() {}
+    use super::*;
+    use crate::board::{MoveType, Turn};
+    use crate::Board;
+    use crate::position::{BoardPosition, File::*, Rank::*};
+    use crate::piece::{check_square, evaluate_vector};
+
+    #[test]
+    fn check_square_is_correct() {
+        let mut board = Board::default();
+        board.set(&(A, One).into(), Some(WHITE_QUEEN));
+
+        assert!(check_square(&board, (A, One).into(), &Turn::White).is_none());
+        assert!(matches!(check_square(&board, (A, One).into(), &Turn::Black), Some((BoardPosition {file: A, rank: One}, MoveType::Capture))));
+        assert!(matches!(check_square(&board, (B, One).into(), &Turn::Black), Some((BoardPosition {file: B, rank: One}, MoveType::Move))));
+    }
+
+    #[test]
+    fn evaluate_vector_is_correct()  {
+        let mut board = Board::default();
+        board.set(&(A, One).into(), Some(WHITE_QUEEN));
+        board.set(&(A, Seven).into(), Some(NEW_BLACK_PAWN));
+        board.set(&(A, Eight).into(), Some(BLACK_ROOK));
+
+
+        let vector = evaluate_vector(&board, (0, 1), 1..8, &Turn::White, &(A, One).into());
+
+        assert!(matches!(vector.first().unwrap(), (BoardPosition { file: A, rank: Two }, MoveType::Move)));
+        assert!(matches!(vector.last().unwrap(), (BoardPosition { file: A, rank: Seven }, MoveType::Capture)));
+    }
+
+    #[test]
+    fn get_standard_valid_move_is_correct() {
+        let mut board = Board::default();
+
+        board.set(&(D, Four).into(), Some(WHITE_QUEEN));
+        board.set(&(D, Eight).into(), Some(BLACK_ROOK));
+        board.set(&(C, Four).into(), Some(BLACK_ROOK));
+
+        let moves = WHITE_QUEEN.get_standard_valid_move(&board, &(D, Four).into(), &(E, One).into(), &Turn::White);
+
+        assert!(moves.get(&(D, Five).into()).is_some());
+        assert!(moves.get(&(F, Five).into()).is_none());
+        assert!(matches!(moves.get(&(D, Eight).into()), Some(MoveType::Capture)));
+        assert!(moves.get(&(B, Four).into()).is_none());
+    }
+
+    #[test]
+    fn get_standard_valid_move_handles_check() {
+        let mut board = Board::default();
+        
+        board.set(&(D, Eight).into(), Some(BLACK_QUEEN));
+        board.set(&(D, One).into(), Some(NEW_WHITE_KING));
+        board.set(&(F, Three).into(), Some(WHITE_ROOK));
+
+        let moves = WHITE_ROOK.get_standard_valid_move(&board, &(F, Three).into(), &(D, One).into(), &Turn::White);
+
+        assert!(moves.get(&(E, Three).into()).is_none());
+        assert!(moves.get(&(D, Three).into()).is_some());
+    }
+
+    #[test]
+    fn change_internal_works() {
+        let mut piece = WHITE_ROOK;
+        piece.change_internal(Piece::Bishop);
+        assert_eq!(*piece.get_internal(), Piece::Bishop);
+    }
 }

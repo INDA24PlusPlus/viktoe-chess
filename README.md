@@ -228,3 +228,10 @@ enum Rank {
     - [x] The king is not in check when begining the move
 - [x] En passant
 - [x] Promotion
+
+# Known errors
+
+Castling state does not change
+When castling, rook does not move
+King can move into each others space
+Pawn is not taken by en passant

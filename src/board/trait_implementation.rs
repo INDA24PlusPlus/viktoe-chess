@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::board::{Board, ChessGame, GameState, Turn};
 use crate::piece::shorthands::*;
-use crate::position::{BoardPosition, File::*, Rank::*};
+use crate::position::{BoardPosition, File::*, Rank::*, FILE};
 
 // The repeated None is to avoid implementing Copy on nearly every struct and enum which would risk
 // a lot of unnessesary deep copying
@@ -30,9 +30,9 @@ impl Default for ChessGame {
 
         let white_king_position = BoardPosition::from((E, One));
 
-        for file in 0..8 {
+        for file in FILE.into_iter() {
             board.set(
-                &BoardPosition::try_from((file, 1)).unwrap(),
+                &BoardPosition::from((file, Two)),
                 Some(NEW_WHITE_PAWN),
             );
         }
@@ -51,9 +51,9 @@ impl Default for ChessGame {
 
         let black_king_position = BoardPosition::from((E, Eight));
 
-        for file in 0..8 {
+        for file in FILE.into_iter() {
             board.set(
-                &BoardPosition::try_from((file, 6)).unwrap(),
+                &BoardPosition::from((file, Seven)),
                 Some(NEW_BLACK_PAWN),
             );
         }

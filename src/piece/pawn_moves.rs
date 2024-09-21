@@ -14,18 +14,19 @@ pub fn get_pawn_moves(
 
     for base_vector in piece.get_movement_base_vector() {
         for current_amount in Range::<i8>::from(piece.get_number_of_moves()) {
-            let new_position = position
+            if let Ok(new_position) = position
                 .clone()
-                .add(vector_multiplication(base_vector, current_amount))
-                .unwrap();
+                .add(vector_multiplication(base_vector, current_amount)) {
 
-            move_map.set(
-                &new_position,
-                match board.get(&new_position) {
-                    None => Some(MoveType::Move),
-                    Some(_) => break,
-                },
-            )
+                move_map.set(
+                    &new_position,
+                    match board.get(&new_position) {
+                        None => Some(MoveType::Move),
+                        Some(_) => break,
+                    },
+                )
+            }
+
         }
     }
 
@@ -69,7 +70,7 @@ pub fn get_pawn_moves(
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
-                    move_map.set(&position, Some(MoveType::Capture));
+                    move_map.set(&position.add((0, 1)).unwrap(), Some(MoveType::Capture));
                 }
             }
 
@@ -80,7 +81,7 @@ pub fn get_pawn_moves(
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
-                    move_map.set(&position, Some(MoveType::Capture));
+                    move_map.set(&position.add((0, 1)).unwrap(), Some(MoveType::Capture));
                 }
             }
         }
@@ -92,7 +93,7 @@ pub fn get_pawn_moves(
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
-                    move_map.set(&position, Some(MoveType::Capture));
+                    move_map.set(&position.add((0, -1)).unwrap(), Some(MoveType::Capture));
                 }
             }
 
@@ -103,7 +104,7 @@ pub fn get_pawn_moves(
                         state: PawnState::PosibleEnPassant
                     }))
                 ) {
-                    move_map.set(&position, Some(MoveType::Capture));
+                    move_map.set(&position.add((0, -1)).unwrap(), Some(MoveType::Capture));
                 }
             }
         }

@@ -1,19 +1,17 @@
-mod prelude;
+pub mod prelude;
 mod test;
-mod board;
-mod piece;
+pub mod board;
+pub mod piece;
 pub mod position;
 
 #[derive(Debug)]
 pub enum ChessError {
     OutOfBounds,
     NoPiece,
+    NotYourPiece,
     NoMoves,
     InvalidMove,
     SelfCheck,
     IncorrectFenString,
     InternalError,
 }
-
-pub use board::{ChessGame, Board, };
-

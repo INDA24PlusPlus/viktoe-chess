@@ -64,7 +64,7 @@ impl Color<Piece> {
                 Piece::King { .. } => KING_MOVES.to_vec(),
                 Piece::Queen => QUEEN_MOVES.to_vec(),
                 Piece::Bishop => BISHOP_MOVES.to_vec(),
-                Piece::Knight => BISHOP_MOVES.to_vec(),
+                Piece::Knight => KNIGTH_MOVES.to_vec(),
                 Piece::Rook => ROOK_MOVES.to_vec(),
                 _ => Vec::new(),
             },
@@ -205,8 +205,8 @@ fn vector_multiplication(vector: (i8, i8), scalar: i8) -> (i8, i8) {
 mod tests {
     use super::*;
     use crate::board::{MoveType, Turn};
-    use crate::Board;
-    use crate::position::{BoardPosition, File::*, Rank::*};
+    use crate::board::Board;
+    use crate::position::{BoardPosition, File::*, Rank::*, FILE, RANK};
     use crate::piece::{check_square, evaluate_vector};
 
     #[test]
@@ -239,7 +239,7 @@ mod tests {
 
         board.set(&(D, Four).into(), Some(WHITE_QUEEN));
         board.set(&(D, Eight).into(), Some(BLACK_ROOK));
-        board.set(&(C, Four).into(), Some(BLACK_ROOK));
+        board.set(&(C, Four).into(), Some(WHITE_KNIGHT));
 
         let moves = WHITE_QUEEN.get_standard_valid_move(&board, &(D, Four).into(), &(E, One).into(), &Turn::White);
 
@@ -247,6 +247,10 @@ mod tests {
         assert!(moves.get(&(F, Five).into()).is_none());
         assert!(matches!(moves.get(&(D, Eight).into()), Some(MoveType::Capture)));
         assert!(moves.get(&(B, Four).into()).is_none());
+
+        let moves = WHITE_KNIGHT.get_standard_valid_move(&board, &(C, Four).into(), &(E, One).into(), &Turn::White);
+
+        assert!(moves.get(&(B, Six).into()).is_some());
     }
 
     #[test]

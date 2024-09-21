@@ -3,7 +3,7 @@ mod trait_implementation;
 
 use std::collections::HashMap;
 
-use crate::piece::{self, shorthands::*};
+use crate::piece::shorthands::*;
 use crate::piece::{
     evaluate_vector, get_king_moves, get_pawn_moves, Color, PawnState, Piece, StepCount,
 };
@@ -57,7 +57,7 @@ impl<T> Board<T> {
 }
 
 pub struct ChessGame {
-    board: Board<Color<Piece>>,
+    pub(crate) board: Board<Color<Piece>>,
     turn: Turn,
     state: GameState,
     white_king_position: BoardPosition,
@@ -70,6 +70,7 @@ pub struct ChessGame {
 }
 
 impl ChessGame {
+    pub fn iter() {}
     pub fn get_square(&self, position: &BoardPosition) -> &Option<Color<Piece>> {
         self.board.get(position)
     }
@@ -83,6 +84,10 @@ impl ChessGame {
 
     pub fn get_valid_moves(&self, position: &BoardPosition) -> Option<Board<MoveType>> {
         let piece = self.board.get(position).as_ref()?;
+
+        if !piece.same_color(&self.turn) {
+            return None;
+        }
 
         let king_position = self.get_king_position(&self.turn);
 
@@ -107,7 +112,7 @@ impl ChessGame {
             .ok_or(ChessError::NoPiece)?;
 
         if !piece.same_color(&self.turn) {
-            return Err(ChessError::NoPiece);
+            return Err(ChessError::NotYourPiece);
         }
 
         // Check if move is valid
@@ -120,8 +125,26 @@ impl ChessGame {
             .as_ref()
             .ok_or(ChessError::InvalidMove)?;
 
+        // Move rook during castling
+        if matches!(piece.get_internal(), Piece::King { .. })
+            && (i32::from(u8::from(initial_position.file.clone())) - i32::from(u8::from(desired_position.file.clone()))).abs() >= 2 {
+            if matches!(desired_position, BoardPosition { file: G, rank: One}) {
+                self.board.set(&BoardPosition::from((H, One)), None);
+                self.board.set(&BoardPosition::from((F, One)), Some(WHITE_ROOK));
+            } else if matches!(desired_position, BoardPosition { file: B, rank: One}) {
+                self.board.set(&BoardPosition::from((A, One)), None);
+                self.board.set(&BoardPosition::from((C, One)), Some(WHITE_ROOK));
+            } else if matches!(desired_position, BoardPosition { file: G, rank: Eight}) {
+                self.board.set(&BoardPosition::from((H, Eight)), None);
+                self.board.set(&BoardPosition::from((F, Eight)), Some(BLACK_ROOK));
+            } else if matches!(desired_position, BoardPosition { file: B, rank: Eight}) {
+                self.board.set(&BoardPosition::from((A, Eight)), None);
+                self.board.set(&BoardPosition::from((C, Eight)), Some(BLACK_ROOK));
+            }
+        }
+
         // Remove castling options if appliceble
-        self.remove_castling_options(&piece, initial_position)
+        self.remove_castling_options(&mut piece, initial_position)
             .unwrap();
 
         // Update list of pawn that can be taken using en passant
@@ -173,16 +196,16 @@ impl ChessGame {
             })
         }
 
-        // Performe move
-        self.board.set(initial_position, None);
-        self.board.set(desired_position, Some(piece.clone()));
-
         if matches!(piece.get_internal(), Piece::King { .. }) {
             match self.turn {
                 Turn::White => self.white_king_position = desired_position.clone(),
                 Turn::Black => self.black_king_position = desired_position.clone(),
             }
         }
+
+        // Performe move
+        self.board.set(initial_position, None);
+        self.board.set(desired_position, Some(piece.clone()));
 
         self.state = if matches!(piece.get_internal(), Piece::Pawn { .. })
             && ((matches!(self.turn, Turn::White) && matches!(desired_position.get_rank(), Eight))
@@ -305,7 +328,7 @@ impl ChessGame {
     // If king_position is out of sync will not remove
     fn remove_castling_options(
         &mut self,
-        piece: &Color<Piece>,
+        piece: &mut Color<Piece>,
         initial_position: &BoardPosition,
     ) -> Result<(), ChessError> {
         let king_position = self.get_king_position(&self.turn).clone();
@@ -316,7 +339,7 @@ impl ChessGame {
             .ok_or(ChessError::InternalError)?;
 
         let castling_state = if matches!(piece.get_internal(), Piece::King { .. }) {
-            king.change_internal(Piece::King {
+            piece.change_internal(Piece::King {
                 check_state: None,
                 castling_state: (false, false),
             });
@@ -333,25 +356,25 @@ impl ChessGame {
             match initial_position {
                 BoardPosition { file: A, rank: One } => king.change_internal(Piece::King {
                     check_state: None,
-                    castling_state: (false, castling_state.1),
+                    castling_state: (castling_state.0, false),
                 }),
                 BoardPosition { file: H, rank: One } => king.change_internal(Piece::King {
                     check_state: None,
-                    castling_state: (castling_state.0, false),
+                    castling_state: (false, castling_state.1),
                 }),
                 BoardPosition {
                     file: A,
                     rank: Eight,
                 } => king.change_internal(Piece::King {
                     check_state: None,
-                    castling_state: (false, castling_state.1),
+                    castling_state: (castling_state.0, false),
                 }),
                 BoardPosition {
                     file: H,
                     rank: Eight,
                 } => king.change_internal(Piece::King {
                     check_state: None,
-                    castling_state: (castling_state.0, false),
+                    castling_state: (false, castling_state.1),
                 }),
                 _ => {}
             }
@@ -491,7 +514,7 @@ mod tests {
     }
 
     #[test]
-    fn remove_castling_correct() {
+    fn remove_castling_options_test_1() {
         let mut game = ChessGame::default();
 
         game.move_piece(&(E, Two).into(), &(E, Four).into())
@@ -506,8 +529,6 @@ mod tests {
             .unwrap()
             .get_internal();
 
-        println!("{:?}", king);
-
         assert!(matches!(
             king,
             Piece::King {
@@ -515,5 +536,105 @@ mod tests {
                 castling_state: (false, false)
             }
         ));
+    }
+
+    #[test]
+    fn remove_castling_options_test_2() {
+        let mut game = ChessGame::default();
+
+        game.move_piece(&(A, Two).into(), &(A, Four).into())
+            .unwrap();
+
+        game.move_piece(&(A, Seven).into(), &(A, Five).into())
+            .unwrap();
+
+        game.move_piece(&(A, One).into(), &(A, Three).into())
+            .unwrap();
+
+        let king = game
+            .get_square(&(E, One).into())
+            .as_ref()
+            .unwrap()
+            .get_internal();
+
+        assert!(matches!(
+            king,
+            Piece::King {
+                check_state: _,
+                castling_state: (true, false)
+            }
+        ));
+    }
+
+    #[test]
+    fn remove_castling_options_test_3() {
+        let mut game = ChessGame::default();
+
+        game.move_piece(&(H, Two).into(), &(H, Four).into())
+            .unwrap();
+
+        game.move_piece(&(H, Seven).into(), &(H, Five).into())
+            .unwrap();
+
+        game.move_piece(&(H, One).into(), &(H, Three).into())
+            .unwrap();
+
+        let king = game
+            .get_square(&(E, One).into())
+            .as_ref()
+            .unwrap()
+            .get_internal();
+
+        assert!(matches!(
+            king,
+            Piece::King {
+                check_state: _,
+                castling_state: (false, true)
+            }
+        ));
+    }
+
+    #[test]
+    fn castling_king_side() {
+        let mut game = ChessGame::default();
+
+        game.move_piece(&(E, Two).into(), &(E, Four).into())
+            .unwrap();
+        game.move_piece(&(E, Seven).into(), &(E, Five).into())
+            .unwrap();
+        game.move_piece(&(F, One).into(), &(E, Two).into()).unwrap();
+        game.move_piece(&(F, Seven).into(), &(F, Five).into())
+            .unwrap();
+        game.move_piece(&(G, One).into(), &(H, Three).into())
+            .unwrap();
+        game.move_piece(&(H, Seven).into(), &(H, Five).into())
+            .unwrap();
+        game.move_piece(&(E, One).into(), &(G, One).into()).unwrap();
+
+        assert!(matches!(
+            game.get_square(&(G, One).into()),
+            Some(WHITE_KING)
+        ));
+        assert!(matches!(
+            game.get_square(&(F, One).into()),
+            Some(WHITE_ROOK)
+        ));
+    }
+
+    #[test]
+    fn test_en_passant() {
+        let mut game = ChessGame::default();
+
+        game.move_piece(&(E, Two).into(), &(E, Four).into())
+            .unwrap();
+        game.move_piece(&(D, Seven).into(), &(D, Five).into())
+            .unwrap();
+        game.move_piece(&(E, Four).into(), &(E, Five).into())
+            .unwrap();
+        game.move_piece(&(F, Seven).into(), &(F, Five).into())
+            .unwrap();
+        game.move_piece(&(E, Five).into(), &(F, Six).into())
+            .unwrap();
+        assert!(game.get_square(&(F, Five).into()).is_none());
     }
 }

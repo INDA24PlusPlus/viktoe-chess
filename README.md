@@ -10,7 +10,7 @@ let game_state = GameState::Ongoing;
 while (matches!(game_state, GameState::CheckMate)) {
     let space_to_move_from = BoardPosition::from((E, Two));
 
-    let moves = game.get_valid_moves(&piece_to_move);
+    let moves = game.get_valid_moves(&space_to_move_from);
 
     let space_to_move_to = BoardPosition::from((E, Four));
 
@@ -19,7 +19,7 @@ while (matches!(game_state, GameState::CheckMate)) {
     if matches!(game_state, Promotion(_)) {
         let promotion_target = Piece::Queen;
 
-        game_state = game.promotion_target(space_to_move_to, promotion_target);
+        game_state = game.promotion_target(promotion_target);
     }
 }
 ```
@@ -33,7 +33,7 @@ struct ChessGame {
 
 ### Methods
 
-fn get_valid_moves(&self, position: &BoardPosition) -> Option<Board<MoveType>>
+fn get_valid_moves(position: &BoardPosition) -> Option<Board<MoveType>>
 
 fn move_piece(
     initial_position: &BoardPosition,
@@ -42,11 +42,7 @@ fn move_piece(
 
 fn request_draw_due_to_repeated_position() -> bool
 
-fn promote_pawn(
-    pawn_position: &BoardPosition,
-    promotion_target: Piece,
-    move_type: &MoveType,
-) -> Result<GameState, ChessError>
+fn promote_pawn(promotion_target: Piece) -> Result<GameState, ChessError>
 
 fn get_player_turn() -> &Turn
 
@@ -80,11 +76,11 @@ struct BoardPosition {
 
 ### Methods
 
-fn get_file(&self) -> &File
+fn get_file() -> &File
 
-fn get_rank(&self) -> &Rank
+fn get_rank() -> &Rank
 
-fn add(&self, vector: (i8, i8)) -> Result<Self, ChessError>
+fn add(vector: (i8, i8)) -> Result<Self, ChessError>
 
 ### Traits
 
@@ -228,8 +224,3 @@ enum Rank {
     - [x] The king is not in check when begining the move
 - [x] En passant
 - [x] Promotion
-
-# Known errors
-
-Castling state does not change
-When castling, rook does not move

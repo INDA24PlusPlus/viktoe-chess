@@ -1,6 +1,7 @@
 use crate::position::{BoardPosition, File::*, Rank::*};
-use crate::piece::{Color, Piece, is_in_check};
+use crate::piece::{Color, Piece};
 use crate::board::{Board, MoveType, Turn};
+use crate::board::check::is_in_check;
 
 use super::CastlingState;
 

@@ -5,7 +5,7 @@ mod trait_implementations;
 
 use std::ops::Range;
 
-use crate::board::{is_in_check, Board, MoveType, Turn};
+use crate::board::{check::is_in_check, Board, MoveType, Turn};
 use crate::position::BoardPosition;
 use shorthands::*;
 

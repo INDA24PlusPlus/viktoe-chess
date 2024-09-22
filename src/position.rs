@@ -29,6 +29,7 @@ pub enum Rank {
     Eight,
 }
 
+/// A struct representing a valid position on a chess board
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoardPosition {
     pub(crate) file: File,
@@ -44,6 +45,13 @@ impl BoardPosition {
         &self.rank
     }
 
+    /// Adds a vector to a position returning an error if the result is outside the board.
+    ///
+    /// # Example
+    /// ```rust
+    /// use viktoe-chess::prelude::*;
+    /// BoardPosition::from((A, One)).add((3, 2)) == BoardPosition::from((D, Three));
+    /// ```
     pub fn add(&self, vector: (i8, i8)) -> Result<Self, ChessError> {
         let (file, rank): (u8, u8) = self.into();
 
@@ -67,6 +75,8 @@ impl BoardPosition {
     }
 }
 
+/// Returns an iterator over each square on the board contianing the position starting in the top
+/// left.
 pub fn iter() -> Vec<BoardPosition> {
     RANK.into_iter().rev().flat_map(|rank| {
         let rank = rank.clone();

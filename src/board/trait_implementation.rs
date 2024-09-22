@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::slice::Iter;
 
-use crate::board::{Board, ChessGame, GameState, Turn};
-use crate::piece::shorthands::*;
+use crate::ChessGame;
+use crate::board::{Board, GameState, Turn};
+use crate::piece::{shorthands::*, Color, Piece};
 use crate::position::{BoardPosition, File::*, Rank::*, FILE};
 
 // The repeated None is to avoid implementing Copy on nearly every struct and enum which would risk
@@ -12,6 +14,7 @@ impl<T> Default for Board<T> {
     }
 }
 
+/// Will return the initial state of a standard game of chess
 impl Default for ChessGame {
     fn default() -> Self {
         let mut board = Board::default();
@@ -70,5 +73,21 @@ impl Default for ChessGame {
             white_possition_history: HashMap::new(),
             black_possition_history: HashMap::new(),
         }
+    }
+}
+
+impl<'a, T> Board<T> {
+/// Returns an iterator over each square starting in the top right corner (a8) progressing through
+/// the entire rank (to h8) before going to the next rank
+    pub fn iter(&'a self) -> Iter<'a, Option<T>> {
+        self.board.iter()
+    }
+}
+
+impl<'a> ChessGame {
+/// Returns an iterator over each square starting in the top right corner (a8) progressing through
+/// the entire rank (to h8) before going to the next rank
+    pub fn iter(&'a self) -> Iter<'a, Option<Color<Piece>>> {
+        self.board.iter()
     }
 }

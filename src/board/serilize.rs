@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::position::{BoardPosition, File::*, Rank::*};
 use crate::piece::shorthands::*;
 use crate::piece::{Color, Piece};
-use crate::board::{ChessGame, Turn, GameState, Board};
-use crate::ChessError;
+use crate::board::{Turn, GameState, Board};
+use crate::{ChessError, ChessGame};
 
 impl ChessGame {
     // does not handle check or check mate, castling and en pasant

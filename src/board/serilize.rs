@@ -28,9 +28,9 @@ impl ChessGame {
         for (i, char) in board_string.chars().enumerate() {
             match char {
                 '1'..='8' => {
-                    temp_board
-                        .skip(char.to_digit(10).unwrap() as usize - 1)
-                        .next();
+                    for _i in 0..(char.to_digit(10).unwrap()) {
+                        temp_board.next();
+                    }
                 }
                 'k' => {
                     *temp_board.next().unwrap() = {
@@ -56,6 +56,7 @@ impl ChessGame {
                 'N' => *temp_board.next().unwrap() = Some(WHITE_KNIGHT),
                 'R' => *temp_board.next().unwrap() = Some(WHITE_ROOK),
                 'P' => *temp_board.next().unwrap() = Some(WHITE_PAWN),
+                '/' => {},
                 _ => return Err(ChessError::IncorrectFenString),
             }
         }
@@ -89,5 +90,15 @@ impl ChessGame {
             white_possition_history,
             black_possition_history,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn works() {
+        ChessGame::from_fen(String::from("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 0")).unwrap();
     }
 }
